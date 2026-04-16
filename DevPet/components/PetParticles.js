@@ -87,15 +87,18 @@ function Particle({ emoji, petAreaWidth, petAreaHeight, delay }) {
 
     // Componente principal
     export default function PetParticles({ petState, petAreaWidth, petAreaHeight }) {
-    const emojis = EMOJI_SETS[petState] || EMOJI_SETS.neutral;
-    const count  = PARTICLE_COUNT[petState] || 3;
+    const defaultEmojis = ['✨', '⭐']; 
+    
+    const emojis = EMOJI_SETS[petState] || EMOJI_SETS.neutral || defaultEmojis;
+    
+    const count = PARTICLE_COUNT[petState] || 3;
 
-    // Genera las partículas con delay escalonado
     const particles = Array.from({ length: count }, (_, i) => ({
         id: i,
-        emoji: emojis[i % emojis.length],
-        delay: (i / count) * 2000, // distribuye los delays en 2 segundos
+        emoji: emojis && emojis.length > 0 ? emojis[i % emojis.length] : '✨',
+        delay: (i / count) * 2000, 
     }));
+
 
     return (
         <View

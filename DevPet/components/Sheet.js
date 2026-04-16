@@ -36,25 +36,29 @@ export default function Sheet({
     const translateY = useRef(new Animated.Value(ANIMATIONS[animation].initial)).current;
     const [modalVisible, setModalVisible] = useState(false);
 
-    useEffect(() => {
-        if (visible) {
-            setModalVisible(true);
-            Animated.spring(translateY, {
-                toValue: 0,
-                useNativeDriver: true,
-                bounciness: 4,
-            }).start();
-        } else {
-            Animated.timing(translateY, {
-                toValue: ANIMATIONS[animation].exit,
-                duration: 250,
-                useNativeDriver: true,
-            }).start(() => {
-                setModalVisible(false);
-                translateY.setValue(ANIMATIONS[animation].initial);
-            });
-        }
-    }, [visible]);
+    useEffect(() => { //Cambio N°1 NSX011
+    const config = ANIMATIONS[animation] || ANIMATIONS.slideUp; 
+
+    if (visible) {
+        setModalVisible(true);
+
+        translateY.setValue(config.initial);
+
+        Animated.spring(translateY, {
+            toValue: 0,
+            bounciness: 4,
+            useNativeDriver: true, // cambio NSX0101 arreglé useEffect
+        }).start();
+    } else {
+        Animated.timing(translateY, {
+            toValue: config.exit,
+            duration: 250,
+            useNativeDriver: true,
+        }).start(() => {
+            setModalVisible(false);
+        });
+    }
+}, [visible, animation]);
 
     return (
         <Modal
@@ -66,7 +70,7 @@ export default function Sheet({
             <TouchableOpacity
                 style={styles.overlay}
                 activeOpacity={1}
-                onPress={null}
+                onPress={onClose} // Posible cambio NSX0102 null antes
             />
             <Animated.View
                 style={[
