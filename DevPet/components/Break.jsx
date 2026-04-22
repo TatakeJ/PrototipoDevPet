@@ -1,19 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert, 
-  Vibration 
-} from 'react-native';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Vibration,
+  Dimensions,
+} from "react-native";
 import { saveBreak } from "../lib/supabaseClient";
 
-const Break = ( { addPoints, onSaved  } ) => {
-  const FOCUS_TIME = 10; // tiempo de pomodoro 
-  const [time, setTime] = useState(FOCUS_TIME);
+const { width } = Dimensions.get("window");
+
+const Break = ({ addPoints, onSaved }) => {
+  // Configuración de tiempos
+  const TIMES = {
+    FOCUS: 7, // 10 segundos para pruebas
+    BREAK: 7, // 5 minutos de descanso
+  };
+
+  const [mode, setMode] = useState("FOCUS"); // FOCUS o BREAK
+  const [time, setTime] = useState(TIMES.FOCUS);
   const [isRunning, setIsRunning] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     let interval = null;
@@ -24,82 +33,82 @@ const Break = ( { addPoints, onSaved  } ) => {
       }, 1000);
     } else if (time === 0 && isRunning) {
       setIsRunning(false);
-      handleFinish();
+      CycleComplete();
     }
 
     return () => clearInterval(interval);
   }, [isRunning, time]);
 
-  const handleStartPause = () => {
-    setIsRunning(!isRunning);
-    setMessage('');
-  };
+  const handleCycleComplete = async () => {
+    Vibration.vibrate([500, 500, 500]);
 
-  const handleReset = () => {
-    setIsRunning(false);
-    setTime(FOCUS_TIME);
-    setMessage('');
-  };
+    if (mode === "FOCUS") {
+      Alert.alert("¡Tiempo de enfoque terminado!", "Iniciando descanso.");
+      setMode("BREAK");
+      setTime(TIMES.BREAK);
+      setIsRunning(true);
+    } else {
+      setMode("BREAK");
+      setTime(TIMES.BREAK);
+      setIsRunning(false);
 
-  const handleFinish = async () => {
-    Vibration.vibrate([500, 500, 500]); // Notificar al usuario
-    try {
-      await saveBreak({
-        user_id: 'demo-user',
-        completed_at: new Date().toISOString()
-      });
-
-      addPoints(prev => prev + 5)
-      
-      setMessage('¡Break registrado con éxito!');
-      Alert.alert("¡Buen trabajo!", "Has completado tu tiempo de descanso.");
-      onSaved()
-      
-    } catch (err) {
-      setMessage(`Error: ${err.message}`);
+      if (onSaved) onSaved();
     }
   };
 
-  const validateStretch = () => {
-    Alert.alert(
-      'Estiramiento', 
-      '¿Confirmas que realizaste tus ejercicios de estiramiento chiquitín?',
-      [
-        { text: 'No', style: 'cancel' },
-        { text: 'Sí, lo hice', onPress: () => setMessage('Estiramiento validado') }
-      ]
-    );
+  const handleStartPause = () => setIsRunning(!isRunning);
+
+  const handleReset = () => {
+    setIsRunning(false);
+    setMode("FOCUS");
+    setTime(TIMES.FOCUS);
+    setMessage("");
   };
 
   const formatTime = () => {
     const min = Math.floor(time / 60);
     const sec = time % 60;
-    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    return `${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
+
+  const handleFinish = () => {
+    setIsRunning(false);
+    onFinish();
+  };
+
+  // Colores dinámicos según el modo
+  const themeColor = mode === "FOCUS" ? "#EF4444" : "#3B82F6";
 
   return (
     <View style={styles.container}>
-      <View style={styles.timerCircle}>
+      <Text style={[styles.modeTitle, { color: themeColor }]}>
+        {mode === "FOCUS" ? "MODO ENFOQUE" : "MODO DESCANSO"}
+      </Text>
+
+      <View style={[styles.timerCircle, { borderColor: themeColor }]}>
         <Text style={styles.timerText}>{formatTime()}</Text>
-        <Text style={styles.statusText}>{isRunning ? 'EN MARCHA' : 'PAUSADO'}</Text>
+        <Text style={styles.statusText}>
+          {isRunning ? "EJECUTANDO" : "PAUSADO"}
+        </Text>
       </View>
 
       <View style={styles.controls}>
-        <TouchableOpacity 
-          style={[styles.mainButton, isRunning ? styles.pauseBtn : styles.startBtn]} 
+        <TouchableOpacity
+          style={[
+            styles.mainButton,
+            { backgroundColor: isRunning ? "#64748B" : themeColor },
+          ]}
           onPress={handleStartPause}
         >
-          <Text style={styles.buttonText}>{isRunning ? 'Pausar' : 'Iniciar'}</Text>
+          <Text style={styles.buttonText}>
+            {isRunning ? "Pausar" : "Iniciar"}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-          <Text style={styles.resetText}>Reiniciar</Text>
+          <Text style={styles.resetText}>Reiniciar Ciclo</Text>
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity style={styles.stretchBtn} onPress={validateStretch}>
-        <Text style={styles.stretchText}>Validar Estiramiento</Text>
-      </TouchableOpacity>
 
       {message ? <Text style={styles.message}>{message}</Text> : null}
     </View>
@@ -109,78 +118,76 @@ const Break = ( { addPoints, onSaved  } ) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
     padding: 20,
   },
+  modeTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    marginBottom: 30,
+    letterSpacing: 1.5,
+  },
   timerCircle: {
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    borderWidth: 8,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'white',
-    marginBottom: 40,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    width: width * 0.7,
+    height: width * 0.7,
+    borderRadius: (width * 0.7) / 2,
+    borderWidth: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "white",
+    marginBottom: 50,
+    // Sombra para iOS/Android
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.15,
   },
   timerText: {
-    fontSize: 60,
-    fontWeight: 'bold',
-    color: '#1E293B',
+    fontSize: 70,
+    fontWeight: "bold",
+    color: "#1E293B",
+    fontVariant: ["tabular-nums"],
   },
   statusText: {
-    fontSize: 14,
-    color: '#94A3B8',
-    letterSpacing: 2,
-    fontWeight: '600',
+    fontSize: 12,
+    color: "#94A3B8",
+    letterSpacing: 3,
+    fontWeight: "700",
+    marginTop: -5,
   },
   controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
-    marginBottom: 30,
+    alignItems: "center",
+    width: "100%",
   },
   mainButton: {
-    paddingHorizontal: 40,
-    paddingVertical: 15,
-    borderRadius: 30,
-    elevation: 2,
+    width: "80%",
+    paddingVertical: 18,
+    borderRadius: 35,
+    alignItems: "center",
+    marginBottom: 20,
+    elevation: 3,
   },
-  startBtn: { backgroundColor: '#22C55E' },
-  pauseBtn: { backgroundColor: '#F59E0B' },
   buttonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: "white",
+    fontSize: 20,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   resetButton: {
     padding: 10,
   },
   resetText: {
-    color: '#64748B',
-    fontSize: 16,
-    textDecorationLine: 'underline',
-  },
-  stretchBtn: {
-    backgroundColor: '#3B82F6',
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 15,
-  },
-  stretchText: {
-    color: 'white',
-    fontWeight: '600',
+    color: "#94A3B8",
+    fontSize: 14,
+    fontWeight: "600",
   },
   message: {
-    marginTop: 20,
-    color: '#475569',
-    fontSize: 16,
+    marginTop: 30,
+    color: "#334155",
+    fontWeight: "500",
+    textAlign: "center",
   },
 });
 

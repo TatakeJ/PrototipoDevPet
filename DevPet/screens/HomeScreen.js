@@ -1,19 +1,44 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { ImageBackground, View, Text, TouchableOpacity, Image, StyleSheet, Dimensions } from "react-native";
+import {
+  ImageBackground,
+  View,
+  Text,
+  TouchableOpacity,
+  Linking,
+  Image,
+  StyleSheet,
+  Dimensions,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "../styles/HomeStyles";
-import { BrainCog, ShoppingCart, ClipboardList, Gem, Droplet, BatteryMedium, Heart, Star, Target, } from "lucide-react-native";
-import { Modal } from 'react-native'
+import {
+  BrainCog,
+  ShoppingCart,
+  ClipboardList,
+  Gem,
+  Droplet,
+  BatteryMedium,
+  Heart,
+  Star,
+  Target,
+} from "lucide-react-native";
+import { Modal, Alert } from "react-native";
 
-// Componentes personalizados (comprobado sin bug por el momento xd)
+// Componentes personalizados (No hay presencia de bug)
 import PetParticles from "../components/PetParticles";
 import Sheet from "../components/Sheet";
 import Break from "../components/Break";
 import Habits from "../components/Habits";
-import Water from '../components/Water';
-import Sleep from '../components/Sleep';
-import MLView from '../components/MLView'
-import { getTodayHabits, getTodayBreaks } from "../lib/supabaseClient";
+import Water from "../components/Water";
+import Sleep from "../components/Sleep";
+import MLView from "../components/MLView";
+import MLCamera from "../components/MLCamera";
+import {
+  supabase,
+  saveBreak,
+  getTodayHabits,
+  getTodayBreaks,
+} from "../lib/supabaseClient";
 
 const { width } = Dimensions.get("window");
 // esto memoriza componentes pesados para evitar lag (lo vi en tiktok)
@@ -24,8 +49,8 @@ export default function HomeScreen({ navigation }) {
   const [bounce, setBounce] = useState(false);
   const [waterVisible, setWaterVisible] = useState(false);
   const [sleepVisible, setSleepVisible] = useState(false);
-  const [breakVisible, setBreakVisible] = useState(false)
-  const [mlVisible, setMLVisible] = useState(false)
+  const [breakVisible, setBreakVisible] = useState(false);
+  const [mlVisible, setMLVisible] = useState(false);
 
   // Estados de visibilidad para los Sheets (lo organicé mejor)
   const [sheets, setSheets] = useState({
@@ -39,6 +64,10 @@ export default function HomeScreen({ navigation }) {
 
   // Puntos (diamantes)
   const [points, setPoints] = useState(0);
+
+  const addPoints = (fn) => {
+    setPoints(fn);
+  };
 
   //  resumen de supa
   const [summary, setSummary] = useState({
@@ -56,28 +85,95 @@ export default function HomeScreen({ navigation }) {
     [points],
   );
 
+  const onSaved = () => {
+    loadSummary();
+    loadBreaks();
+  };
+
+  // ML botón de validación
+  const handleMLSuccess = async () => {
+    try {
+      await saveBreak({
+        user_id: "demo-user",
+        completed_at: new Date().toISOString(),
+      });
+
+      addPoints((prev) => prev + 5);
+
+      Alert.alert("¡Buen trabajo!", "Estiramiento validado");
+
+      setMLVisible(false);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
   const toggleSheet = useCallback((name, visible) => {
     setSheets((prev) => ({ ...prev, [name]: visible }));
   }, []);
 
   const loadSummary = async () => {
-    try {
-      console.log("Actualizando resumen diario...");
-      const habits = await getTodayHabits();
-      const breaks = await getTodayBreaks();
+    const today = new Date().toISOString().split("T")[0];
+    const { data, error } = await supabase
+      .from("habits")
+      .select("water, sleep_hours")
+      .eq("user_id", "demo-user")
+      .eq("date", today);
 
-      setSummary({
-        water: habits?.water || 0,
-        sleep: habits?.sleep_hours || 0,
-        breaks: Array.isArray(breaks) ? breaks.length : 0,
-      });
-    } catch (err) {
-      console.error("Error al cargar resumen:", err.message);
+    if (error) {
+      console.log("Error en summary:", error);
+      return;
     }
+
+    if (!data || data.length === 0) {
+      setSummary((prev) => ({ ...prev, water: 0, sleep: 0 }));
+      return;
+    }
+
+    const totals = data.reduce(
+      (acc, item) => ({
+        water: acc.water + (item.water > 0 ? item.water : 0),
+        sleep: acc.sleep + (item.sleep_hours > 0 ? item.sleep_hours : 0),
+      }),
+      { water: 0, sleep: 0 },
+    );
+
+    setSummary((prev) => ({
+      ...prev,
+      water: totals.water,
+      sleep: totals.sleep,
+    }));
+  };
+  const loadBreaks = async () => {
+    const today = new Date().toISOString().split("T")[0];
+
+    const { count, error } = await supabase
+      .from("breaks")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", "demo-user")
+      .eq("date", today)
+      .gte("completed_at", `${today}T00:00:00`)
+      .lte("completed_at", `${today}T23:59:59`);
+
+    if (error) {
+      console.log("Error cargando breaks:", error);
+      return;
+    }
+
+    setSummary((prev) => ({
+      ...prev,
+      breaks: count || 0, // Aquí actualizamos el estado summary con el conteo real
+    }));
+  };
+
+  const handleBreakFinished = () => {
+    setBreakVisible(false);
+    setMLVisible(true);
   };
 
   useEffect(() => {
     loadSummary();
+    loadBreaks();
   }, []);
 
   useEffect(() => {
@@ -142,10 +238,10 @@ export default function HomeScreen({ navigation }) {
 
         {/* Área Central: mascota y partículas */}
         <View style={styles.main_cont}>
-
           <View style={localStyles.summaryPill}>
             <Text style={{ color: "white", fontSize: 11, fontWeight: "600" }}>
-              💧Agua: {summary.water} | 😴 Sueño: {summary.sleep}h | 🧘 Breaks: {summary.breaks}
+              💧Agua: {summary.water} | 😴 Sueño: {summary.sleep}h | 🧘 Breaks:{" "}
+              {summary.breaks}
             </Text>
           </View>
 
@@ -209,7 +305,6 @@ export default function HomeScreen({ navigation }) {
             <Heart size={24} color="white" />
           </TouchableOpacity>
         </View>
-
       </SafeAreaView>
 
       {/* --- sección de modales organizada--- */}
@@ -243,14 +338,36 @@ export default function HomeScreen({ navigation }) {
       </Sheet>
 
       {/* Registro de Hidratación */}
-      <Sheet visible={waterVisible} onClose={() => setWaterVisible(false)} sheetTop={80} animation="slideUp">
-  <Water addPoints={setPoints} onSaved={() => { loadSummary(); setWaterVisible(false); }} />
-</Sheet>
+      <Sheet
+        visible={waterVisible}
+        onClose={() => setWaterVisible(false)}
+        sheetTop={80}
+        animation="slideUp"
+      >
+        <Water
+          addPoints={setPoints}
+          onSaved={() => {
+            loadSummary();
+            setWaterVisible(false);
+          }}
+        />
+      </Sheet>
 
       {/* Registro de Sueño */}
-      <Sheet visible={sleepVisible} onClose={() => setSleepVisible(false)} sheetTop={80} animation="slideUp">
-  <Sleep addPoints={setPoints} onSaved={() => { loadSummary(); setSleepVisible(false); }} />
-</Sheet>
+      <Sheet
+        visible={sleepVisible}
+        onClose={() => setSleepVisible(false)}
+        sheetTop={80}
+        animation="slideUp"
+      >
+        <Sleep
+          addPoints={setPoints}
+          onSaved={() => {
+            loadSummary();
+            setSleepVisible(false);
+          }}
+        />
+      </Sheet>
 
       {/* Pausas Activas */}
       <Sheet
@@ -262,27 +379,62 @@ export default function HomeScreen({ navigation }) {
         <Break addPoints={setPoints} onSaved={loadSummary} />
       </Sheet>
 
-      <Modal visible={mlVisible} animationType="slide">
-  <View style={{ flex: 1 }}>
+      {/* MODAL 1: Pomodoro */}
+      <Modal visible={sheets.rest} animationType="slide" transparent={true}>
+        <View style={{ flex: 1 }}>
+          <Break
+            addPoints={setPoints}
+            onFinish={() => {
+              toggleSheet("rest", false);
+                setMLVisible(true);
+            }}
+          />
+          <TouchableOpacity
+            onPress={() => toggleSheet("rest", false)}
+            style={styles.closeBtnMinimal}
+          >
+            <Text style={{ color: "#64748B" }}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
-    <TouchableOpacity
-      onPress={() => setMLVisible(false)}
-      style={{ padding: 15, backgroundColor: '#111' }}
-    >
-      <Text style={{ color: 'white', textAlign: 'center' }}>
-        Cerrar
-      </Text>
-    </TouchableOpacity>
+      {/* MODAL 2: ML */}
+      <Modal visible={mlVisible} animationType="fade">
+        <View style={{ flex: 1, backgroundColor: "black" }}>
+          {/* eliminé texto plano que causaba el error */}
+          <MLCamera
+            onDetected={async () => {
+              try {
+                await saveBreak({
+                  user_id: "demo-user",
+                  completed_at: new Date().toISOString(),
+                });
 
-    <MLView 
-      onDetected={() => {
-        handleFinish()
-        setMLVisible(false)
-      }}
-    />
+                addPoints((prev) => prev + 5);
 
-  </View>
-</Modal>
+                Alert.alert(
+                  "¡Validado!",
+                  "Estiramiento completado, puntos sumados",
+                );
+
+                setMLVisible(false);
+                loadBreaks();
+              } catch (err) {
+                console.log("Error al validar:", err);
+              }
+            }}
+          />
+
+          <TouchableOpacity
+            onPress={() => setMLVisible(false)}
+            style={{ padding: 15, backgroundColor: "#111" }}
+          >
+            <Text style={{ color: "white", textAlign: "center" }}>
+              Cerrar Cámara
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </ImageBackground>
   );
 }
@@ -351,5 +503,21 @@ const localStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     padding: 12,
     borderRadius: 40,
+  },
+  closeBtnMinimal: {
+    padding: 20,
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+  },
+  floatingCloseBtn: {
+    position: "absolute",
+    bottom: 40,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: "white",
   },
 });

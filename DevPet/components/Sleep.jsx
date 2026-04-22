@@ -65,7 +65,7 @@ const Sleep = ({ addPoints, onSaved }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   card: { backgroundColor: 'white', padding: 30, borderRadius: 30, width: '85%', elevation: 5 },
   icon: { fontSize: 40, textAlign: 'center', marginBottom: 10 },
   title: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', color: '#1E293B', marginBottom: 20 },

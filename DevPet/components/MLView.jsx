@@ -15,7 +15,7 @@ const MLView = ({ onDetected }) => {
     <video id="webcam" autoplay playsinline width="300" height="300"></video>
 
     <script>
-      const URL = "PEGA_AQUI_TU_URL_DEL_MODELO";
+      const URL = "https://teachablemachine.withgoogle.com/models/UTWlA7v3H/";
 
       let model, webcam;
 
@@ -53,6 +53,17 @@ const MLView = ({ onDetected }) => {
   </body>
   </html>
   `
+
+  const handleMLResult = () => {
+  Alert.alert("IA", "Postura validada correctamente ✅")
+
+  saveBreak({
+    user_id: 'demo-user',
+    completed_at: new Date().toISOString()
+  })
+
+  addPoints(prev => prev + 5)
+}
 
   return (
     <View style={{ flex: 1 }}>
