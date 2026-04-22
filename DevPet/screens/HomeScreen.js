@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "../styles/HomeStyles";
 import { BrainCog, ShoppingCart, ClipboardList, Gem, Droplet, BatteryMedium, Heart, Star, Target, } from "lucide-react-native";
 import { Modal } from 'react-native'
+import HabitChart from "../components/charts/HabitChart";
 
 // Componentes personalizados (comprobado sin bug por el momento xd)
 import PetParticles from "../components/PetParticles";
@@ -219,11 +220,7 @@ export default function HomeScreen({ navigation }) {
         onClose={() => toggleSheet("states", false)}
         animation="slideDown"
       >
-        <Text style={styles.text_sheet}>Estadísticas y Gráficos</Text>
-        <Text style={{ textAlign: "center", marginTop: 10 }}>
-          Agua: {summary.water} | Sueño: {summary.sleep}h | Pausas:{" "}
-          {summary.breaks}
-        </Text>
+        <HabitChart />
       </Sheet>
 
       <Sheet
