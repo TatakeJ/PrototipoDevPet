@@ -12,11 +12,11 @@ import { saveBreak } from "../lib/supabaseClient";
 
 const { width } = Dimensions.get("window");
 
-const Break = ({ addPoints, onSaved }) => {
+const Break = ({ addPoints, onSaved, onCycleComplete }) => {
   // Configuración de tiempos
   const TIMES = {
-    FOCUS: 7, // 10 segundos para pruebas
-    BREAK: 7, // 5 minutos de descanso
+    FOCUS: 5,
+    BREAK: 5,
   };
 
   const [mode, setMode] = useState("FOCUS"); // FOCUS o BREAK
@@ -33,11 +33,45 @@ const Break = ({ addPoints, onSaved }) => {
       }, 1000);
     } else if (time === 0 && isRunning) {
       setIsRunning(false);
-      CycleComplete();
+      Vibration.vibrate([0, 500, 200, 500]);
+
+      if (mode === "FOCUS") {
+        Alert.alert(
+          "¡Enfoque Terminado!",
+          "Es hora de validar con la cámara para iniciar tu descanso.",
+          [
+            {
+              text: "Abrir Cámara",
+              onPress: () => {
+                if (onCycleComplete) onCycleComplete();
+                setMode("BREAK");
+                setTime(TIMES.BREAK);
+              },
+            },
+          ],
+        );
+      } else {
+        if (addPoints) addPoints((prev) => prev + 10);
+
+        Alert.alert(
+          "¡Descanso Terminado!",
+          "Has completado el ciclo y ganado 10 puntos. ✨",
+          [
+            {
+              text: "Genial",
+              onPress: () => {
+                setMode("FOCUS");
+                setTime(TIMES.FOCUS);
+                if (onSaved) onSaved();
+              },
+            },
+          ],
+        );
+      }
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, time]);
+  }, [isRunning, time, mode, onCycleComplete, addPoints, onSaved]);
 
   const handleCycleComplete = async () => {
     Vibration.vibrate([500, 500, 500]);
@@ -138,7 +172,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "white",
     marginBottom: 50,
-    // Sombra para iOS/Android
     elevation: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 5 },

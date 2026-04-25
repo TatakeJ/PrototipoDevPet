@@ -1,9 +1,8 @@
-import React from 'react'
-import { View } from 'react-native'
-import { WebView } from 'react-native-webview'
+import React from "react";
+import { View } from "react-native";
+import { WebView } from "react-native-webview";
 
 const MLView = ({ onDetected }) => {
-
   const html = `
   <!DOCTYPE html>
   <html>
@@ -52,39 +51,41 @@ const MLView = ({ onDetected }) => {
     </script>
   </body>
   </html>
-  `
+  `;
 
   const handleMLResult = () => {
-  Alert.alert("IA", "Postura validada correctamente ✅")
+    Alert.alert(
+      "Análisis de postura",
+      "✔ Estiramiento correcto detectado por IA",
+    );  
+    saveBreak({
+      user_id: "demo-user",
+      completed_at: new Date().toISOString(),
+    });
 
-  saveBreak({
-    user_id: 'demo-user',
-    completed_at: new Date().toISOString()
-  })
-
-  addPoints(prev => prev + 5)
-}
+    addPoints((prev) => prev + 5);
+  };
 
   return (
     <View style={{ flex: 1 }}>
       <WebView
         style={{ flex: 1 }}
-        originWhitelist={['*']}
+        originWhitelist={["*"]}
         source={{ html }}
         javaScriptEnabled
         domStorageEnabled
         onMessage={(event) => {
-          const result = event.nativeEvent.data
+          const result = event.nativeEvent.data;
 
-          console.log("ML:", result)
+          console.log("ML:", result);
 
           if (result === "Correcto") {
-            onDetected(true)
+            onDetected(true);
           }
         }}
       />
     </View>
-  )
-}
+  );
+};
 
-export default MLView
+export default MLView;

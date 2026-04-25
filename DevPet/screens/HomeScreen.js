@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ImageBackground,
   View,
@@ -6,6 +12,7 @@ import {
   TouchableOpacity,
   Linking,
   Image,
+  Animated,
   StyleSheet,
   Dimensions,
 } from "react-native";
@@ -18,6 +25,21 @@ import { Modal, Alert } from "react-native";
 import HabitChart from "../components/charts/HabitChart";
 
 // Componentes personalizados (comprobado sin bug por el momento xd)
+import {
+  BrainCog,
+  ShoppingCart,
+  ClipboardList,
+  Gem,
+  Droplet,
+  BatteryMedium,
+  Heart,
+  Star,
+  Target,
+} from "lucide-react-native";
+import { Modal, Alert, fadeAnim } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+
+// Componentes personalizados
 import PetParticles from "../components/PetParticles";
 import Sheet from "../components/Sheet";
 import Break from "../components/Break";
@@ -37,6 +59,34 @@ const { width } = Dimensions.get("window");
 // esto memoriza componentes pesados para evitar lag (lo vi en tiktok)
 const OptimizedParticles = React.memo(PetParticles);
 
+const getRecommendation = (summary) => {
+  if (summary.sleep < 5) {
+    return {
+      text: "Oye... necesitas descansar 😴",
+      mood: "sleep",
+    };
+  }
+
+  if (summary.water < 3) {
+    return {
+      text: "Tu cuerpo pide agua 💧",
+      mood: "water",
+    };
+  }
+
+  if (summary.breaks < 1) {
+    return {
+      text: "Llevas mucho tiempo quieto 🧘",
+      mood: "break",
+    };
+  }
+
+  return {
+    text: "Todo en orden, sigue así 🚀",
+    mood: "happy",
+  };
+};
+
 export default function HomeScreen({ navigation }) {
   const [petArea, setPetArea] = useState({ width: 0, height: 0 });
   const [bounce, setBounce] = useState(false);
@@ -44,6 +94,8 @@ export default function HomeScreen({ navigation }) {
   const [sleepVisible, setSleepVisible] = useState(false);
   const [breakVisible, setBreakVisible] = useState(false);
   const [mlVisible, setMLVisible] = useState(false);
+  const [showBubble, setShowBubble] = useState(false);
+  const [bubbleOpen, setBubbleOpen] = useState(false);
 
   // Estados de visibilidad para los Sheets (lo organicé mejor)
   const [sheets, setSheets] = useState({
@@ -68,6 +120,8 @@ export default function HomeScreen({ navigation }) {
     sleep: 0,
     breaks: 0,
   });
+
+  const recommendation = useMemo(() => getRecommendation(summary), [summary]);
 
   // Memorizar cálculos de niveles
   const { level, progress } = useMemo(
@@ -144,9 +198,9 @@ export default function HomeScreen({ navigation }) {
       .from("breaks")
       .select("*", { count: "exact", head: true })
       .eq("user_id", "demo-user")
-      .eq("date", today)
-      .gte("completed_at", `${today}T00:00:00`)
-      .lte("completed_at", `${today}T23:59:59`);
+      /* .eq("date", today) */ /* Me daba conflicto con el rango de time */
+      .gte("completed_at", `${today}T00:00:00.000Z`)
+      .lte("completed_at", `${today}T23:59:59.999Z`);
 
     if (error) {
       console.log("Error cargando breaks:", error);
@@ -164,6 +218,19 @@ export default function HomeScreen({ navigation }) {
     setMLVisible(true);
   };
 
+  const getIcon = () => {
+    if (recommendation.mood === "sleep") return "😴";
+    if (recommendation.mood === "water") return "💧";
+    if (recommendation.mood === "break") return "🧘";
+    return "💡";
+  };
+
+  useEffect(() => {
+    setShowBubble(true);
+    const timer = setTimeout(() => setShowBubble(false), 3000);
+    return () => clearTimeout(timer);
+  }, [recommendation]);
+
   useEffect(() => {
     loadSummary();
     loadBreaks();
@@ -177,6 +244,33 @@ export default function HomeScreen({ navigation }) {
     }
   }, [points]);
 
+  /*   useEffect(() => {
+    const rec = getRecommendation(summary);
+    setRecommendation(rec);
+  }, [summary]); */
+
+  useEffect(() => {
+    setShowBubble(true);
+
+    const timer = setTimeout(() => {
+      setShowBubble(false);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [recommendation]);
+
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    if (bubbleOpen) {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 5,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [bubbleOpen]);
+
   return (
     <ImageBackground
       source={require("../assets/RoomBedBackground.png")}
@@ -184,7 +278,7 @@ export default function HomeScreen({ navigation }) {
       resizeMode="cover"
     >
       <SafeAreaView style={styles.body}>
-        {/* Header: Estados, Tienda, Tareas y PUNTOS (Mejor organizados, antes parecían un aceertijo)*/}
+        {/* Header: Estados, Tienda, Tareas y PUNTOS*/}
         <View style={localStyles.topHeader}>
           <View style={localStyles.row}>
             <TouchableOpacity
@@ -221,8 +315,9 @@ export default function HomeScreen({ navigation }) {
         <View style={localStyles.levelSection}>
           <View style={localStyles.levelRow}>
             <Star size={12} color="#fbbf24" fill="#fbbf24" />
-            <Text style={localStyles.levelLabel}>LVL {level}</Text>
-            <Text style={localStyles.expText}>{progress}/100 XP</Text>
+            <Text style={localStyles.levelLabel}>
+              LVL {level} • {progress}/100 XP
+            </Text>
           </View>
           <View style={localStyles.expTrack}>
             <View style={[localStyles.expFill, { width: `${progress}%` }]} />
@@ -231,20 +326,53 @@ export default function HomeScreen({ navigation }) {
 
         {/* Área Central: mascota y partículas */}
         <View style={styles.main_cont}>
+          {/* 1. Resumen de estados superior */}
           <View style={localStyles.summaryPill}>
             <Text style={{ color: "white", fontSize: 11, fontWeight: "600" }}>
-              💧Agua: {summary.water} | 😴 Sueño: {summary.sleep}h | 🧘 Breaks:{" "}
-              {summary.breaks}
+              💧Agua: {summary.water} | 😴 Sueño: {summary.sleep}h | 🧘 Breaks: {summary.breaks}
             </Text>
           </View>
 
+          {/* 2. Área de la mascota y notificaciones */}
           <View style={localStyles.petBox}>
+            {bubbleOpen && (
+              <View style={localStyles.bubble}>
+                <Text style={localStyles.bubbleText}>
+                  {recommendation.text}
+                </Text>
+                <View style={localStyles.bubbleArrow} />
+              </View>
+            )}
+            {/* BURBUJA MINI (Botón de notificación) */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setBubbleOpen(!bubbleOpen)}
+              style={localStyles.petInteractionArea}
+            >
             <Text
               style={[localStyles.moodEmoji, { fontSize: bounce ? 55 : 45 }]}
             >
-              {points >= 20 ? "😸" : points >= 10 ? "🙂" : "😿"}
+              {recommendation.mood === "sleep"
+                ? "😴"
+                : recommendation.mood === "water"
+                  ? "💧"
+                  : points >= 20
+                    ? "😸"
+                    : points >= 10
+                      ? "🙂"
+                      : "😿"}
             </Text>
+            <Animated.View
+              style={[
+                styles.expandedBubble,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            ></Animated.View>
 
+            {/* IMAGEN DE LA MASCOTA */}
             <Image
               source={require("../assets/DevPet_neutral.png")}
               style={styles.img_pet}
@@ -257,22 +385,24 @@ export default function HomeScreen({ navigation }) {
                 [],
               )}
             />
+          </TouchableOpacity>
+            {/* PARTÍCULAS (Dentro del petBox para que sigan a la imagen) */}
+            {petArea.width > 0 && (
+              <OptimizedParticles
+                petState={points >= 20 ? "happy" : "neutral"}
+                petAreaWidth={petArea.width}
+                petAreaHeight={petArea.height}
+              />
+            )}
           </View>
 
+          {/* 3. Tarjeta de misión inferior */}
           <View style={localStyles.missionCard}>
             <Target size={14} color="#3b82f6" />
             <Text style={localStyles.missionText}>
               {points < 50 ? `Meta: ${50 - points} pts` : "¡Completado!"}
             </Text>
           </View>
-
-          {petArea.width > 0 && (
-            <OptimizedParticles
-              petState={points >= 20 ? "happy" : "neutral"}
-              petAreaWidth={petArea.width}
-              petAreaHeight={petArea.height}
-            />
-          )}
         </View>
 
         {/* Footer: Acciones de hábitos */}
@@ -365,7 +495,15 @@ export default function HomeScreen({ navigation }) {
         sheetTop={80}
         animation="slideUp"
       >
-        <Break addPoints={setPoints} onSaved={loadSummary} />
+        <Break
+          addPoints={setPoints}
+          onSaved={loadSummary}
+          onCycleComplete={() => {
+            setTimeout(() => {
+              setMLVisible(true);
+            }, 500);
+          }}
+        />
       </Sheet>
 
       {/* MODAL 1: Pomodoro */}
@@ -373,24 +511,27 @@ export default function HomeScreen({ navigation }) {
         <View style={{ flex: 1 }}>
           <Break
             addPoints={setPoints}
-            onFinish={() => {
+            onSaved={() => {
               toggleSheet("rest", false);
+            }}
+            onCycleComplete={() => {
+              toggleSheet("rest", false);
+
+              setTimeout(() => {
                 setMLVisible(true);
+              }, 500);
             }}
           />
           <TouchableOpacity
             onPress={() => toggleSheet("rest", false)}
             style={styles.closeBtnMinimal}
-          >
-            <Text style={{ color: "#64748B" }}>Cancelar</Text>
-          </TouchableOpacity>
+          ></TouchableOpacity>
         </View>
       </Modal>
 
       {/* MODAL 2: ML */}
       <Modal visible={mlVisible} animationType="fade">
         <View style={{ flex: 1, backgroundColor: "black" }}>
-          {/* eliminé texto plano que causaba el error */}
           <MLCamera
             onDetected={async () => {
               try {
@@ -398,14 +539,11 @@ export default function HomeScreen({ navigation }) {
                   user_id: "demo-user",
                   completed_at: new Date().toISOString(),
                 });
-
                 addPoints((prev) => prev + 5);
-
                 Alert.alert(
                   "¡Validado!",
                   "Estiramiento completado, puntos sumados",
                 );
-
                 setMLVisible(false);
                 loadBreaks();
               } catch (err) {
@@ -413,7 +551,6 @@ export default function HomeScreen({ navigation }) {
               }
             }}
           />
-
           <TouchableOpacity
             onPress={() => setMLVisible(false)}
             style={{ padding: 15, backgroundColor: "#111" }}
@@ -427,6 +564,10 @@ export default function HomeScreen({ navigation }) {
     </ImageBackground>
   );
 }
+// Limpieza, esto es un subcomponente
+const ActionButton = ({ icon, onPress }) => (
+  <TouchableOpacity style={localStyles.actionBtn} onPress={onPress}>{icon}</TouchableOpacity>
+);
 
 const localStyles = StyleSheet.create({
   topHeader: {
@@ -434,60 +575,58 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 15,
     justifyContent: "space-between",
     alignItems: "center",
-    height: 40,
+    height: 50,
   },
-  row: { flexDirection: "row", gap: 8 },
-  miniBtn: { backgroundColor: "rgba(0,0,0,0.3)", padding: 6, borderRadius: 10 },
+  row: { flexDirection: "row", gap: 10 },
+  miniBtn: { backgroundColor: "rgba(0,0,0,0.4)", padding: 8, borderRadius: 10 },
   pointsContainer: {
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 15,
-    gap: 4,
+    padding: 8,
+    borderRadius: 20,
+    gap: 5,
   },
+
   pointsText: { color: "white", fontWeight: "bold", fontSize: 14 },
-  levelSection: { paddingHorizontal: 25, marginTop: 5 },
+  levelSection: { paddingHorizontal: 20, marginTop: 10 },
   levelRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 4,
-    gap: 4,
+    gap: 5,
   },
   levelLabel: { color: "white", fontWeight: "bold", fontSize: 11 },
   expText: { color: "rgba(255,255,255,0.6)", fontSize: 9, marginLeft: "auto" },
   expTrack: {
-    height: 4,
+    height: 6,
     backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 2,
-    overflow: "hidden",
+    borderRadius: 3,
+    marginTop: 4,
   },
-  expFill: { height: "100%", backgroundColor: "#fbbf24" },
+  expFill: { height: "100%", backgroundColor: "#fbbf24", borderRadius: 3 },
   summaryPill: {
-    position: "absolute",
-    top: -30,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 15,
-  },
-  petBox: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 20,
-  },
-  moodEmoji: { position: "absolute", top: -40, zIndex: 10 },
-  missionCard: {
-    backgroundColor: "rgba(255,255,255,0.9)",
-    flexDirection: "row",
+    backgroundColor: "rgba(0,0,0,0.5)",
     padding: 8,
-    borderRadius: 12,
-    alignItems: "center",
-    gap: 6,
-    marginTop: 10,
+    borderRadius: 20,
+    alignSelf: "center",
+    top: -100,
   },
-  missionText: { fontSize: 11, fontWeight: "bold", color: "#1e293b" },
+  petBox: { alignItems: "center", marginTop: 40, height: 250 },
+  moodEmoji: { textAlign: "center", marginBottom: 10 },
+  missionCard: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    padding: 10,
+    borderRadius: 15,
+    marginTop: 50,
+    alignSelf: "center",
+  },
+  missionText: {
+    color: "white",
+    marginLeft: 8,
+    fontWeight: "bold",
+  },
   actionBtn: {
     backgroundColor: "rgba(255,255,255,0.15)",
     padding: 12,
@@ -508,5 +647,104 @@ const localStyles = StyleSheet.create({
     borderRadius: 25,
     borderWidth: 1,
     borderColor: "white",
+  },
+  recommendationCard: {
+    marginTop: 15,
+    backgroundColor: "#1E293B",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+  },
+  recText: {
+    color: "#F8FAFC",
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    flex: 1,
+  },
+  bubble: {
+    position: "absolute",
+    top: -50,
+    backgroundColor: "white",
+    padding: 12,
+    borderRadius: 15,
+    zIndex: 10,
+  },
+
+  bubbleArrow: {
+    position: "absolute",
+    bottom: -8,
+    alignSelf: "center",
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 10,
+    borderTopColor: "white",
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+  },
+
+  moodIndicator: {
+    width: 4,
+    height: "100%",
+    borderRadius: 2,
+    marginRight: 12,
+  },
+  miniNotificationBtn: {
+    position: "absolute",
+    right: 20,
+    top: -10,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    padding: 8,
+    borderRadius: 20,
+    zIndex: 20,
+  },
+  bubbleText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1E293B",
+    textAlign: "center",
+  },
+  miniBubble: {
+    position: "absolute",
+    top: 80,
+    right: 20,
+    backgroundColor: "#22c55e",
+    width: 45,
+    height: 45,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 6,
+  },
+  closeCamBtn: { padding: 20, backgroundColor: "#222", alignItems: "center" },
+  expandedBubble: {
+    position: "absolute",
+    bottom: 220,
+    alignSelf: "center",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    maxWidth: 260,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    zIndex: 999,
+  },
+  bubbleText: {
+    color: "#1e293b",
+    fontWeight: "bold",
+    textAlign: "center",
+    fontSize: 13,
   },
 });
