@@ -65,10 +65,26 @@ export default function DailyHabitCharts({ selectedHabit, habitLogs }) {
 }
 
 function HydrationChart({ habitLogs, dailyGoal }) {
-    // Sort logs by created_at timestamp
-    const sortedLogs = [...habitLogs].sort((a, b) => 
-        new Date(a.created_at) - new Date(b.created_at)
-    );
+    // Si no hay datos de hidratación hoy, mostrar mensaje motivacional
+    if (!habitLogs || habitLogs.length === 0) {
+        return (
+            <View style={styles.noDataContainer}>
+                <Text style={styles.noDataTitle}>¡A hidratarse! 💧</Text>
+                <Text style={styles.noDataSubtitle}>
+                    No has registrado agua hoy. 
+                    {"\n"}Tu meta es de {dailyGoal} ml diarios.
+                </Text>
+                <Text style={styles.noDataTip}>
+                    💡 Bebe un vaso de agua ahora y registra tu progreso
+                </Text>
+            </View>
+        );
+    }
+
+    // Sort logs by log_hour to show hours from smallest to largest
+    const sortedLogs = [...habitLogs].sort((a, b) => {
+        return a.log_hour.localeCompare(b.log_hour);
+    });
 
     // Calculate cumulative sum and create chart data points
     const chartData = [];
@@ -77,14 +93,16 @@ function HydrationChart({ habitLogs, dailyGoal }) {
 
     sortedLogs.forEach(log => {
         cumulativeSum += log.value || 0;
-        const hour = new Date(log.created_at).getUTCHours();
-        const minutes = new Date(log.created_at).getUTCMinutes();
+        
+        // Usar directamente log_hour de la consulta de Supabase
+        // log_hour ya viene en formato HH:MM desde getLocalTime()
+        const timeLabel = log.log_hour || '00:00';
         
         chartData.push({
             value: cumulativeSum,
             dataPointColor: '#4B9FE1'
         });
-        labels.push(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`);
+        labels.push(timeLabel);
     });
 
     // Calculate dynamic max value for y-axis
@@ -129,6 +147,22 @@ function HydrationChart({ habitLogs, dailyGoal }) {
 }
 
 function SleepCard({ habitLogs }) {
+    // Si no hay datos de sueño hoy, mostrar mensaje motivacional
+    if (!habitLogs || habitLogs.length === 0) {
+        return (
+            <View style={styles.noDataContainerSleep}>
+                <Text style={[styles.noDataTitle, {color: '#8B5CF6'}]}>¡Hora de descansar! 😴</Text>
+                <Text style={styles.noDataSubtitle}>
+                    No has registrado tu sueño hoy. 
+                    {"\n"}Recuerda dormir entre 7-9 horas para un buen descanso.
+                </Text>
+                <Text style={[styles.noDataTip, {backgroundColor: 'rgba(139, 92, 246, 0.2)'}]}>
+                    💡 Establece una rutina nocturna y mejora tu calidad de sueño
+                </Text>
+            </View>
+        );
+    }
+
     const totalSleep = habitLogs.reduce((sum, log) => sum + (log.value || 0), 0);
     
     return (
@@ -144,6 +178,22 @@ function SleepCard({ habitLogs }) {
 }
 
 function ActiveBreaksCard({ habitLogs, dailyGoal }) {
+    // Si no hay datos de pausas activas hoy, mostrar mensaje motivacional
+    if (!habitLogs || habitLogs.length === 0) {
+        return (
+            <View style={styles.noDataContainerBreaks}>
+                <Text style={[styles.noDataTitle, {color: '#10B981'}]}>¡Muévete y descansa! 🤸</Text>
+                <Text style={styles.noDataSubtitle}>
+                    No has hecho pausas activas hoy. 
+                    {"\n"}Tu meta es de {dailyGoal} pausas para mantenerte energético.
+                </Text>
+                <Text style={[styles.noDataTip, {backgroundColor: 'rgba(16, 185, 129, 0.2)'}]}>
+                    💡 Levántate, estira y muévete cada hora para mejorar tu salud
+                </Text>
+            </View>
+        );
+    }
+
     const completedBreaks = habitLogs.length;
     
     return (
@@ -211,6 +261,56 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         padding: 40,
+        backgroundColor: 'rgba(75, 159, 225, 0.1)',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(75, 159, 225, 0.3)',
+        margin: 20,
+    },
+    noDataContainerSleep: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 40,
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(139, 92, 246, 0.3)',
+        margin: 20,
+    },
+    noDataContainerBreaks: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 40,
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.3)',
+        margin: 20,
+    },
+    noDataTitle: {
+        color: '#4B9FE1',
+        fontSize: 20,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 12,
+    },
+    noDataSubtitle: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 16,
+        textAlign: 'center',
+        lineHeight: 24,
+        marginBottom: 16,
+    },
+    noDataTip: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 14,
+        textAlign: 'center',
+        fontStyle: 'italic',
+        backgroundColor: 'rgba(75, 159, 225, 0.2)',
+        padding: 12,
+        borderRadius: 8,
     },
     noDataText: {
         color: 'rgba(255,255,255,0.6)',

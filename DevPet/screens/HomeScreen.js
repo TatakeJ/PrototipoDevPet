@@ -17,48 +17,32 @@ import {
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { styles } from "../styles/HomeStyles";
-
-// Componentes personalizados (No hay presencia de bug)
-import { BrainCog, ShoppingCart, ClipboardList, Gem, Droplet, BatteryMedium, Heart, Star, Target, } from "lucide-react-native";
-import { Modal, Alert } from "react-native";
-import HabitChart from "../components/charts/HabitChart";
-
-// Componentes personalizados (comprobado sin bug por el momento xd)
-import {
-  BrainCog,
-  ShoppingCart,
-  ClipboardList,
-  Gem,
-  Droplet,
-  BatteryMedium,
-  Heart,
-  Star,
-  Target,
-} from "lucide-react-native";
-import { Modal, Alert, fadeAnim } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
 
 // Componentes personalizados
-import PetParticles from "../components/PetParticles";
+import { BrainCog, ShoppingCart, ClipboardList, Droplet, BatteryMedium, Heart, Star, Target, } from "lucide-react-native";
+import { Modal, Alert } from "react-native";
+import HabitChart from "../components/charts/HabitChart";
+import Pet from "../components/pet/Pet";
 import Sheet from "../components/Sheet";
-import Break from "../components/Break";
-import Habits from "../components/Habits";
-import Water from "../components/Water";
-import Sleep from "../components/Sleep";
+import Break from "../components/habits/Break";
+import Habits from "../components/habits/Habits";
+import Water from "../components/habits/Water";
+import Sleep from "../components/habits/Sleep";
 import MLView from "../components/MLView";
 import MLCamera from "../components/MLCamera";
+import DailyTasks from "../components/DailyTasks";
 import {
   supabase,
   saveBreak,
   getTodayHabits,
   getTodayBreaks,
+  getDayHabits,
+  getUserInfo,
 } from "../lib/supabaseClient";
 
 const { width } = Dimensions.get("window");
-// esto memoriza componentes pesados para evitar lag (lo vi en tiktok)
-const OptimizedParticles = React.memo(PetParticles);
 
+// A esta funcion se le pasara otros datos que no sean el resumen (summary ya no existe es innesesario)
 const getRecommendation = (summary) => {
   if (summary.sleep < 5) {
     return {
@@ -88,8 +72,6 @@ const getRecommendation = (summary) => {
 };
 
 export default function HomeScreen({ navigation }) {
-  const [petArea, setPetArea] = useState({ width: 0, height: 0 });
-  const [bounce, setBounce] = useState(false);
   const [waterVisible, setWaterVisible] = useState(false);
   const [sleepVisible, setSleepVisible] = useState(false);
   const [breakVisible, setBreakVisible] = useState(false);
@@ -107,21 +89,39 @@ export default function HomeScreen({ navigation }) {
     rest: false,
   });
 
-  // Puntos (diamantes)
+  // Información del usuario y puntos (diamantes)
+  const [userInfo, setUserInfo] = useState(null);
   const [points, setPoints] = useState(0);
+
+  // Ref para el componente Pet
+  const petRef = useRef(null);
+
+  // Cargar información del usuario desde la base de datos
+  const loadUserInfo = async () => {
+    try {
+      const userData = await getUserInfo();
+      if (userData) {
+        setUserInfo(userData);
+        setPoints(userData.total_points || 0);
+      }
+    } catch (error) {
+      console.error('Error cargando información del usuario:', error);
+    }
+  };
 
   const addPoints = (fn) => {
     setPoints(fn);
   };
 
-  //  resumen de supa
-  const [summary, setSummary] = useState({
-    water: 0,
-    sleep: 0,
-    breaks: 0,
-  });
+  const onSaved = () => {
+    loadUserInfo(); // Recargar información del usuario para obtener puntos actualizados
+    // Actualizar estado de la mascota automáticamente
+    if (petRef.current) {
+      petRef.current.refreshPetState();
+    }
+  };
 
-  const recommendation = useMemo(() => getRecommendation(summary), [summary]);
+  const recommendation = useMemo(() => getRecommendation({ water: 0, sleep: 0, breaks: 0 }), []);
 
   // Memorizar cálculos de niveles
   const { level, progress } = useMemo(
@@ -131,11 +131,6 @@ export default function HomeScreen({ navigation }) {
     }),
     [points],
   );
-
-  const onSaved = () => {
-    loadSummary();
-    loadBreaks();
-  };
 
   // ML botón de validación
   const handleMLSuccess = async () => {
@@ -150,6 +145,11 @@ export default function HomeScreen({ navigation }) {
       Alert.alert("¡Buen trabajo!", "Estiramiento validado");
 
       setMLVisible(false);
+
+      // Actualizar estado de la mascota después de validar con IA
+      if (petRef.current) {
+        petRef.current.refreshPetState();
+      }
     } catch (err) {
       console.log(err);
     }
@@ -158,60 +158,6 @@ export default function HomeScreen({ navigation }) {
   const toggleSheet = useCallback((name, visible) => {
     setSheets((prev) => ({ ...prev, [name]: visible }));
   }, []);
-
-  const loadSummary = async () => {
-    const today = new Date().toISOString().split("T")[0];
-    const { data, error } = await supabase
-      .from("habits")
-      .select("water, sleep_hours")
-      .eq("user_id", "demo-user")
-      .eq("date", today);
-
-    if (error) {
-      console.log("Error en summary:", error);
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      setSummary((prev) => ({ ...prev, water: 0, sleep: 0 }));
-      return;
-    }
-
-    const totals = data.reduce(
-      (acc, item) => ({
-        water: acc.water + (item.water > 0 ? item.water : 0),
-        sleep: acc.sleep + (item.sleep_hours > 0 ? item.sleep_hours : 0),
-      }),
-      { water: 0, sleep: 0 },
-    );
-
-    setSummary((prev) => ({
-      ...prev,
-      water: totals.water,
-      sleep: totals.sleep,
-    }));
-  };
-  const loadBreaks = async () => {
-    const today = new Date().toISOString().split("T")[0];
-
-    const { count, error } = await supabase
-      .from("breaks")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", "demo-user")
-      /* .eq("date", today) */ /* Me daba conflicto con el rango de time */
-      .gte("completed_at", `${today}T00:00:00.000Z`)
-      .lte("completed_at", `${today}T23:59:59.999Z`);
-
-    if (error) {
-      console.log("Error cargando breaks:", error);
-      return;
-    }
-
-    setSummary((prev) => ({
-      ...prev,
-      breaks: count || 0, // Aquí actualizamos el estado summary con el conteo real
-    }));
-  };
 
   const handleBreakFinished = () => {
     setBreakVisible(false);
@@ -232,53 +178,17 @@ export default function HomeScreen({ navigation }) {
   }, [recommendation]);
 
   useEffect(() => {
-    loadSummary();
-    loadBreaks();
+    loadUserInfo(); // Cargar información del usuario al montar
   }, []);
-
-  useEffect(() => {
-    if (points > 0) {
-      setBounce(true);
-      const timer = setTimeout(() => setBounce(false), 150);
-      return () => clearTimeout(timer);
-    }
-  }, [points]);
-
-  /*   useEffect(() => {
-    const rec = getRecommendation(summary);
-    setRecommendation(rec);
-  }, [summary]); */
-
-  useEffect(() => {
-    setShowBubble(true);
-
-    const timer = setTimeout(() => {
-      setShowBubble(false);
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [recommendation]);
-
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-
-  useEffect(() => {
-    if (bubbleOpen) {
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 5,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [bubbleOpen]);
 
   return (
     <ImageBackground
       source={require("../assets/RoomBedBackground.png")}
-      style={styles.background}
+      style={localStyles.background}
       resizeMode="cover"
     >
-      <SafeAreaView style={styles.body}>
-        {/* Header: Estados, Tienda, Tareas y PUNTOS*/}
+      <SafeAreaView style={localStyles.body}>
+        {/* Header: Estados, Tienda, Tareas y PUNTOS (Mejor organizados, antes parecían un aceertijo)*/}
         <View style={localStyles.topHeader}>
           <View style={localStyles.row}>
             <TouchableOpacity
@@ -306,7 +216,7 @@ export default function HomeScreen({ navigation }) {
 
           {/* Contador de diamantes pa' el free */}
           <View style={localStyles.pointsContainer}>
-            <Gem size={16} color="#fbbf24" fill="#fbbf24" />
+            <Text>💎</Text>
             <Text style={localStyles.pointsText}>{points}</Text>
           </View>
         </View>
@@ -325,88 +235,16 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* Área Central: mascota y partículas */}
-        <View style={styles.main_cont}>
-          {/* 1. Resumen de estados superior */}
-          <View style={localStyles.summaryPill}>
-            <Text style={{ color: "white", fontSize: 11, fontWeight: "600" }}>
-              💧Agua: {summary.water} | 😴 Sueño: {summary.sleep}h | 🧘 Breaks: {summary.breaks}
-            </Text>
-          </View>
-
-          {/* 2. Área de la mascota y notificaciones */}
-          <View style={localStyles.petBox}>
-            {bubbleOpen && (
-              <View style={localStyles.bubble}>
-                <Text style={localStyles.bubbleText}>
-                  {recommendation.text}
-                </Text>
-                <View style={localStyles.bubbleArrow} />
-              </View>
-            )}
-            {/* BURBUJA MINI (Botón de notificación) */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setBubbleOpen(!bubbleOpen)}
-              style={localStyles.petInteractionArea}
-            >
-            <Text
-              style={[localStyles.moodEmoji, { fontSize: bounce ? 55 : 45 }]}
-            >
-              {recommendation.mood === "sleep"
-                ? "😴"
-                : recommendation.mood === "water"
-                  ? "💧"
-                  : points >= 20
-                    ? "😸"
-                    : points >= 10
-                      ? "🙂"
-                      : "😿"}
-            </Text>
-            <Animated.View
-              style={[
-                styles.expandedBubble,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ scale: scaleAnim }],
-                },
-              ]}
-            ></Animated.View>
-
-            {/* IMAGEN DE LA MASCOTA */}
-            <Image
-              source={require("../assets/DevPet_neutral.png")}
-              style={styles.img_pet}
-              onLayout={useCallback(
-                (e) =>
-                  setPetArea({
-                    width: e.nativeEvent.layout.width,
-                    height: e.nativeEvent.layout.height,
-                  }),
-                [],
-              )}
+        <View style={localStyles.petContainer}>
+            <Pet
+                ref={petRef}
+                points={points}
+                onPointsChange={(newPoints) => setPoints(newPoints)} // ← agrega esto
             />
-          </TouchableOpacity>
-            {/* PARTÍCULAS (Dentro del petBox para que sigan a la imagen) */}
-            {petArea.width > 0 && (
-              <OptimizedParticles
-                petState={points >= 20 ? "happy" : "neutral"}
-                petAreaWidth={petArea.width}
-                petAreaHeight={petArea.height}
-              />
-            )}
-          </View>
-
-          {/* 3. Tarjeta de misión inferior */}
-          <View style={localStyles.missionCard}>
-            <Target size={14} color="#3b82f6" />
-            <Text style={localStyles.missionText}>
-              {points < 50 ? `Meta: ${50 - points} pts` : "¡Completado!"}
-            </Text>
-          </View>
         </View>
 
         {/* Footer: Acciones de hábitos */}
-        <View style={styles.actions_cont}>
+        <View style={localStyles.actions_cont}>
           <TouchableOpacity
             style={localStyles.actionBtn}
             onPress={() => setWaterVisible(true)} // Cambiado aquí
@@ -445,7 +283,7 @@ export default function HomeScreen({ navigation }) {
         onClose={() => toggleSheet("shop", false)}
         animation="slideDown"
       >
-        <Text style={styles.text_sheet}>Tienda de Items</Text>
+        <Text style={localStyles.text_sheet}>Tienda de Items</Text>
       </Sheet>
 
       <Sheet
@@ -453,7 +291,15 @@ export default function HomeScreen({ navigation }) {
         onClose={() => toggleSheet("task", false)}
         animation="slideDown"
       >
-        <Text style={styles.text_sheet}>Tareas Diarias</Text>
+        <DailyTasks
+          addPoints={setPoints}
+          onSaved={() => {
+            loadUserInfo();
+            if (petRef.current) {
+              petRef.current.refreshPetState();
+            }
+          }}
+        />
       </Sheet>
 
       {/* Registro de Hidratación */}
@@ -464,11 +310,12 @@ export default function HomeScreen({ navigation }) {
         animation="slideUp"
       >
         <Water
-          addPoints={setPoints}
-          onSaved={() => {
-            loadSummary();
-            setWaterVisible(false);
-          }}
+            addPoints={setPoints}
+            onSaved={() => {
+                setWaterVisible(false);
+                loadUserInfo();
+                if (petRef.current) petRef.current.refreshPetState(); // ← recalcula thirsty
+            }}
         />
       </Sheet>
 
@@ -482,8 +329,11 @@ export default function HomeScreen({ navigation }) {
         <Sleep
           addPoints={setPoints}
           onSaved={() => {
-            loadSummary();
             setSleepVisible(false);
+            loadUserInfo(); // Recargar puntos desde la base de datos
+            if (petRef.current) {
+              petRef.current.refreshPetState();
+            }
           }}
         />
       </Sheet>
@@ -497,11 +347,11 @@ export default function HomeScreen({ navigation }) {
       >
         <Break
           addPoints={setPoints}
-          onSaved={loadSummary}
-          onCycleComplete={() => {
-            setTimeout(() => {
-              setMLVisible(true);
-            }, 500);
+          onSaved={() => {
+            loadUserInfo(); // Recargar puntos desde la base de datos
+            if (petRef.current) {
+              petRef.current.refreshPetState();
+            }
           }}
         />
       </Sheet>
@@ -513,19 +363,19 @@ export default function HomeScreen({ navigation }) {
             addPoints={setPoints}
             onSaved={() => {
               toggleSheet("rest", false);
-            }}
-            onCycleComplete={() => {
-              toggleSheet("rest", false);
-
-              setTimeout(() => {
-                setMLVisible(true);
-              }, 500);
+              setMLVisible(true);
+              loadUserInfo(); // Recargar puntos desde la base de datos
+              if (petRef.current) {
+                petRef.current.refreshPetState();
+              }
             }}
           />
           <TouchableOpacity
             onPress={() => toggleSheet("rest", false)}
-            style={styles.closeBtnMinimal}
-          ></TouchableOpacity>
+            style={localStyles.closeBtnMinimal}
+          >
+            <Text style={{ color: "#64748B" }}>Cancelar</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
 
@@ -546,6 +396,10 @@ export default function HomeScreen({ navigation }) {
                 );
                 setMLVisible(false);
                 loadBreaks();
+                // Actualizar estado de la mascota después de validar con ML
+                if (petRef.current) {
+                  petRef.current.refreshPetState();
+                }
               } catch (err) {
                 console.log("Error al validar:", err);
               }
@@ -570,67 +424,84 @@ const ActionButton = ({ icon, onPress }) => (
 );
 
 const localStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
+  body: {
+    flex: 1,
+    justifyContent: "space-between",
+    padding: 5,
+  },
   topHeader: {
     flexDirection: "row",
     paddingHorizontal: 15,
     justifyContent: "space-between",
     alignItems: "center",
-    height: 50,
+    height: 40,
   },
-  row: { flexDirection: "row", gap: 10 },
-  miniBtn: { backgroundColor: "rgba(0,0,0,0.4)", padding: 8, borderRadius: 10 },
+  petContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingBottom: Dimensions.get("window").height * 0.02,
+  },
+  row: { flexDirection: "row", gap: 8 },
+  miniBtn: { backgroundColor: "rgba(0,0,0,0.3)", padding: 6, borderRadius: 10 },
   pointsContainer: {
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     flexDirection: "row",
     alignItems: "center",
-    padding: 8,
-    borderRadius: 20,
-    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 15,
+    gap: 4,
   },
-
   pointsText: { color: "white", fontWeight: "bold", fontSize: 14 },
-  levelSection: { paddingHorizontal: 20, marginTop: 10 },
+  levelSection: { paddingHorizontal: 25, marginTop: 5 },
   levelRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 4,
-    gap: 5,
+    gap: 4,
   },
-  levelLabel: { color: "white", fontWeight: "bold", fontSize: 11 },
+  levelLabel: { color: "white", fontWeight: "bold", fontSize: 11, },
   expText: { color: "rgba(255,255,255,0.6)", fontSize: 9, marginLeft: "auto" },
   expTrack: {
-    height: 6,
+    height: 4,
     backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 3,
-    marginTop: 4,
+    borderRadius: 2,
+    overflow: "hidden",
   },
-  expFill: { height: "100%", backgroundColor: "#fbbf24", borderRadius: 3 },
-  summaryPill: {
-    backgroundColor: "rgba(0,0,0,0.5)",
-    padding: 8,
-    borderRadius: 20,
-    alignSelf: "center",
-    top: -100,
-  },
-  petBox: { alignItems: "center", marginTop: 40, height: 250 },
-  moodEmoji: { textAlign: "center", marginBottom: 10 },
-  missionCard: {
+  expFill: { height: "100%", backgroundColor: "#fbbf24" },
+  actions_cont: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.1)",
-    padding: 10,
-    borderRadius: 15,
-    marginTop: 50,
-    alignSelf: "center",
+    justifyContent: "space-evenly",
+    paddingVertical: Dimensions.get("window").height * 0.018,
   },
-  missionText: {
-    color: "white",
-    marginLeft: 8,
-    fontWeight: "bold",
+  petBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 20,
   },
+  moodEmoji: { position: "absolute", top: -40, zIndex: 10 },
+  missionCard: {
+    backgroundColor: "rgba(255,255,255,0.9)",
+    flexDirection: "row",
+    padding: 8,
+    borderRadius: 12,
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+  },
+  missionText: { fontSize: 11, fontWeight: "bold", color: "#1e293b" },
   actionBtn: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-    padding: 12,
-    borderRadius: 40,
+    borderRadius: 100,
+    backgroundColor: "#FF6500",
+    padding: 9,
+    width: Dimensions.get("window").width * 0.12,
+    height: Dimensions.get("window").width * 0.12,
+    justifyContent: "center",
+    alignItems: "center",
   },
   closeBtnMinimal: {
     padding: 20,
@@ -648,103 +519,10 @@ const localStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "white",
   },
-  recommendationCard: {
-    marginTop: 15,
-    backgroundColor: "#1E293B",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
-  },
-  recText: {
-    color: "#F8FAFC",
-    fontSize: 14,
-    fontWeight: "600",
-    letterSpacing: 0.3,
-    flex: 1,
-  },
-  bubble: {
-    position: "absolute",
-    top: -50,
-    backgroundColor: "white",
-    padding: 12,
-    borderRadius: 15,
-    zIndex: 10,
-  },
-
-  bubbleArrow: {
-    position: "absolute",
-    bottom: -8,
-    alignSelf: "center",
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderTopWidth: 10,
-    borderTopColor: "white",
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-  },
-
-  moodIndicator: {
-    width: 4,
-    height: "100%",
-    borderRadius: 2,
-    marginRight: 12,
-  },
-  miniNotificationBtn: {
-    position: "absolute",
-    right: 20,
-    top: -10,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    padding: 8,
-    borderRadius: 20,
-    zIndex: 20,
-  },
-  bubbleText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1E293B",
-    textAlign: "center",
-  },
-  miniBubble: {
-    position: "absolute",
-    top: 80,
-    right: 20,
-    backgroundColor: "#22c55e",
-    width: 45,
-    height: 45,
-    borderRadius: 25,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 6,
-  },
-  closeCamBtn: { padding: 20, backgroundColor: "#222", alignItems: "center" },
-  expandedBubble: {
-    position: "absolute",
-    bottom: 220,
-    alignSelf: "center",
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    maxWidth: 260,
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    zIndex: 999,
-  },
-  bubbleText: {
-    color: "#1e293b",
+  text_sheet: {
+    color: "white",
+    fontSize: 18,
     fontWeight: "bold",
     textAlign: "center",
-    fontSize: 13,
   },
 });

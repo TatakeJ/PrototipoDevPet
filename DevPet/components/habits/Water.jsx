@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Dimensions, ScrollView } from 'react-native';
-import { saveHabits } from "../lib/supabaseClient";
+import { saveWaterLog } from "../../lib/supabaseClient";
 
 const { height } = Dimensions.get('window');
 
@@ -14,8 +14,8 @@ const Water = ({ addPoints, onSaved }) => {
       return Alert.alert("¡Hey!", "Bebe un poco de agua antes de registrar 💧");
     }
     try {
-      await saveHabits({ water: water * ML_PER_GLASS });
-      addPoints(prev => prev + 5);
+      await saveWaterLog(water * ML_PER_GLASS);
+      // Los puntos se asignan automáticamente por el trigger trg_add_points_on_log
       Alert.alert("¡Hidratado!", "Progreso guardado. ¡Sigue así!");
       onSaved?.();
     } catch (err) {

@@ -36,16 +36,6 @@ export const styles = StyleSheet.create({
         fontWeight: "bold",
         fontSize: 14,
     },
-    main_cont: {
-        flex: 1,
-        justifyContent: "flex-end",
-        alignItems: "center",
-        paddingBottom: height * 0.04,
-    },
-    img_pet: {
-        width: width * 0.48,
-        height: width * 0.48 * (208 / 187),
-    },
     actions_cont: {
         flexDirection: "row",
         justifyContent: "space-evenly",

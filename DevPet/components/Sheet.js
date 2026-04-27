@@ -6,10 +6,12 @@ import {
     TouchableOpacity,
     StyleSheet,
     Dimensions,
+    ScrollView,
 } from 'react-native';
 import { X } from "lucide-react-native";
 
 const { height: screenHeight } = Dimensions.get('window');
+const MAX_SHEET_HEIGHT = screenHeight * 0.85;
 
 const ANIMATIONS = {
     slideDown: {
@@ -77,13 +79,20 @@ export default function Sheet({
                     styles.sheet, 
                     { 
                         top: sheetTop,
+                        maxHeight: MAX_SHEET_HEIGHT,
                         transform: [{ translateY }] 
                     }]}
             >
                 <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
                     <X size={20} color="#fff" strokeWidth={2}></X>
                 </TouchableOpacity>
-                {children}
+                <ScrollView 
+                    style={styles.scrollContent}
+                    showsVerticalScrollIndicator={true}
+                    nestedScrollEnabled={true}
+                >
+                    {children}
+                </ScrollView>
             </Animated.View>
         </Modal>
     );
@@ -120,5 +129,8 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         backgroundColor: 'rgba(255,255,255,0.1)',
         zIndex: 10,
+    },
+    scrollContent: {
+        flex: 1,
     }
 });
