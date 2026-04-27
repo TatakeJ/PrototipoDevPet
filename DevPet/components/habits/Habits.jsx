@@ -8,7 +8,7 @@ import {
   Alert, 
   ScrollView 
 } from 'react-native';
-import { saveHabits } from "../lib/supabaseClient";
+import { saveHabits } from "../../lib/supabaseClient";
 
 const Habits = ({ addPoints, onSaved }) => {
   const [view, setView] = useState('menu'); // 'menu', 'water', 'sleep'

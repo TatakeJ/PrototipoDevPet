@@ -8,7 +8,7 @@ import {
   Vibration,
   Dimensions,
 } from "react-native";
-import { saveBreak } from "../lib/supabaseClient";
+import { saveBreak } from "../../lib/supabaseClient";
 
 const { width } = Dimensions.get("window");
 

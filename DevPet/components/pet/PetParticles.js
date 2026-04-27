@@ -6,10 +6,10 @@ const { width } = Dimensions.get('window');
 // Define los emojis por estado
 const EMOJI_SETS = {
   happy: [
-    require('../assets/emojis/happy.png'),
+    require('../../assets/emojis/happy.png'),
   ],
   sad: [
-    require('../assets/emojis/sad.png'),
+    require('../../assets/emojis/sad.png'),
   ],
 };
 
