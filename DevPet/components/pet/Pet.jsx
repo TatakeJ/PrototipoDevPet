@@ -20,7 +20,7 @@ const OptimizedParticles = React.memo(PetParticles);
 const { width } = Dimensions.get('window');
 const WATER_GOAL = 2500; // ml — debe coincidir con daily_goal en healthy_habits
 
-const Pet = forwardRef(({ points, onPointsChange }, ref) => {
+const Pet = forwardRef(({ userId, points, onPointsChange }, ref) => {
 
     // ── Estado base (fijo) desde pet_states ──
     const [baseMood, setBaseMood]       = useState('neutral'); // happy | neutral | sad
@@ -56,7 +56,7 @@ const Pet = forwardRef(({ points, onPointsChange }, ref) => {
     // LÓGICA SLEEPY
     // ────────────────────────────────────────────
     const checkSleepy = async () => {
-        const hours = await getTodaySleepHours();
+        const hours = await getTodaySleepHours(userId);
 
         // Sin registro de sueño = no activar sleepy aún
         if (hours === null) {
@@ -67,10 +67,10 @@ const Pet = forwardRef(({ points, onPointsChange }, ref) => {
         if (hours < 5) {
             setSleepyActive(true);
 
-            // Penalización solo una vez por día
+            // Penalización solo una vez por día (se debe revisar el sitema de penalizaciones)
             // if (!sleepyPenaltyDone) {
             //     try {
-            //         const newPoints = await deductSleepyPoints();
+            //         const newPoints = await deductSleepyPoints(userId);
             //         if (onPointsChange) onPointsChange(newPoints);
             //         setSleepyPenaltyDone(true);
             //     } catch (err) {
@@ -169,7 +169,7 @@ const Pet = forwardRef(({ points, onPointsChange }, ref) => {
     }, []);
 
     const checkThirsty = async () => {
-    const accum = await getTodayWaterTotal();
+    const accum = await getTodayWaterTotal(userId);
         setWaterAccum(accum);
 
         if (accum === 0) {
@@ -203,7 +203,7 @@ const Pet = forwardRef(({ points, onPointsChange }, ref) => {
     // ────────────────────────────────────────────
     const loadBaseMood = async () => {
         try {
-            const result = await calculateEnergyLevel();
+            const result = await calculateEnergyLevel(userId);
             setBaseMood(result.mood);
             setEnergyLevel(result.energy_level);
         } catch (err) {

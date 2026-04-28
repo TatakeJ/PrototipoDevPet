@@ -4,7 +4,7 @@ import { saveWaterLog } from "../../lib/supabaseClient";
 
 const { height } = Dimensions.get('window');
 
-const Water = ({ addPoints, onSaved }) => {
+const Water = ({ userId, addPoints, onSaved }) => {
   const [water, setWater] = useState(0);
   const GOAL = 8; // Meta diaria de vasos
   const ML_PER_GLASS = 250;
@@ -14,7 +14,7 @@ const Water = ({ addPoints, onSaved }) => {
       return Alert.alert("¡Hey!", "Bebe un poco de agua antes de registrar 💧");
     }
     try {
-      await saveWaterLog(water * ML_PER_GLASS);
+      await saveWaterLog(water * ML_PER_GLASS, userId);
       // Los puntos se asignan automáticamente por el trigger trg_add_points_on_log
       Alert.alert("¡Hidratado!", "Progreso guardado. ¡Sigue así!");
       onSaved?.();

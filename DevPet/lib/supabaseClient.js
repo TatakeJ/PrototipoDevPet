@@ -1,9 +1,107 @@
 import { createClient } from '@supabase/supabase-js'
+import CryptoJS from 'crypto-js'
 
 const SUPABASE_URL = 'https://shjdaneajcmwbjszdibx.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoamRhbmVhamNtd2Jqc3pkaWJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyOTQ3MjcsImV4cCI6MjA5MTg3MDcyN30.TdCQMZmNrPyQPyjQqs5AQofPRHffQQk-Qsmvk30XXNk'
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+// ── FUNCIONES DE AUTENTICACIÓN ──
+
+// Verificar si usuario o email ya existe
+export const checkUserExists = async (user_name, email) => {
+    try {
+        const { data, error } = await supabase
+            .from('users')
+            .select('user_id')
+            .or(`user_name.eq.${user_name},email.eq.${email}`)
+            .limit(1)
+
+        if (error) throw error
+        return data && data.length > 0
+    } catch (error) {
+        console.error('Error verificando usuario:', error)
+        throw error
+    }
+}
+
+// Registrar nuevo usuario
+export const registerUser = async (user_name, email, password) => {
+    try {
+        // Verificar si usuario ya existe
+        const exists = await checkUserExists(user_name, email)
+        if (exists) {
+            throw new Error('El usuario o email ya está registrado')
+        }
+
+        // Encriptar password usando SHA256
+        const password_hash = CryptoJS.SHA256(password).toString()
+
+        // Insertar usuario en base de datos
+        const { data, error } = await supabase
+            .from('users')
+            .insert([{
+                user_name,
+                email,
+                password_hash,
+                total_points: 0
+            }])
+            .select('user_id')
+            .single()
+
+        if (error) throw error
+
+        console.log('Usuario registrado exitosamente:', data.user_id)
+        return { user_id: data.user_id }
+    } catch (error) {
+        console.error('Error registrando usuario:', error)
+        throw error
+    }
+}
+
+// Iniciar sesión
+export const loginUser = async (user_name, password) => {
+    try {
+        console.log('Intentando login para user_name:', user_name);
+        
+        // Buscar usuario por user_name
+        const { data, error } = await supabase
+            .from('users')
+            .select('user_id, password_hash')
+            .eq('user_name', user_name)
+            .single()
+
+        console.log('Resultado de búsqueda:', { data, error });
+
+        if (error) {
+            console.error('Error en consulta:', error);
+            if (error.code === 'PGRST116') {
+                throw new Error('Usuario no encontrado')
+            }
+            throw error
+        }
+
+        if (!data) {
+            throw new Error('Usuario no encontrado')
+        }
+
+        // Comparar password usando SHA256
+        const password_hash = CryptoJS.SHA256(password).toString()
+        console.log('Hash de password ingresado:', password_hash);
+        console.log('Hash en DB:', data.password_hash);
+        
+        const isMatch = password_hash === data.password_hash
+        if (!isMatch) {
+            throw new Error('Contraseña incorrecta')
+        }
+
+        console.log('Login exitoso:', data.user_id)
+        return { user_id: data.user_id }
+    } catch (error) {
+        console.error('Error en login:', error)
+        throw error
+    }
+}
 
 const getLocalDate = () => {
     return new Date().toLocaleDateString('en-CA');
@@ -16,12 +114,12 @@ const getLocalTime = () => {
     return `${hours}:${minutes}`;
 }
 
-export const saveWaterLog = async (waterAmount) => {
+export const saveWaterLog = async (waterAmount, userId) => {
     try {
         const { error } = await supabase
             .from('habit_logs')
             .insert([{
-                user_id: 19,
+                user_id: userId,
                 habit_id: 1,
                 value: waterAmount,
                 log_date: getLocalDate(),
@@ -36,12 +134,12 @@ export const saveWaterLog = async (waterAmount) => {
     }
 }
 
-export const saveSleepLog = async (sleepHours) => {
+export const saveSleepLog = async (sleepHours, userId) => {
     try {
         const { error } = await supabase
             .from('habit_logs')
             .insert([{
-                user_id: 19,
+                user_id: userId,
                 habit_id: 2,
                 value: sleepHours,
                 log_date: getLocalDate(),
@@ -56,12 +154,12 @@ export const saveSleepLog = async (sleepHours) => {
     }
 }
 
-export const saveActiveBreakLog = async () => {
+export const saveActiveBreakLog = async (userId) => {
     try {
         const { error } = await supabase
             .from('habit_logs')
             .insert([{
-                user_id: 19,
+                user_id: userId,
                 habit_id: 3,
                 value: 1,
                 log_date: getLocalDate(),
@@ -77,12 +175,12 @@ export const saveActiveBreakLog = async () => {
 }
 
 // Guardar sesión de pausa activa en active_break_sessions
-export const saveBreakSession = async (sessionData) => {
+export const saveBreakSession = async (sessionData, userId) => {
   try {
     const { error } = await supabase
       .from('active_break_sessions')
       .insert([{
-        user_id: 19,
+        user_id: userId,
         start_time: sessionData.startTime,
         end_time: sessionData.endTime,
         duration_seconds: sessionData.duration,
@@ -98,12 +196,12 @@ export const saveBreakSession = async (sessionData) => {
 }
 
 // Mantener compatibilidad temporal con saveHabits para componentes que aún lo usan
-export const saveHabits = async (data) => {
+export const saveHabits = async (data, userId) => {
   // Esta función ahora delega a las funciones específicas
   if (data.water) {
-    return await saveWaterLog(data.water);
+    return await saveWaterLog(data.water, userId);
   } else if (data.sleep_hours) {
-    return await saveSleepLog(data.sleep_hours);
+    return await saveSleepLog(data.sleep_hours, userId);
   }
   
   throw new Error('Tipo de hábito no soportado en saveHabits');
@@ -154,7 +252,7 @@ export const getHealthyHabits = async () => {
 }
 
 // Obtener todos los hábitos del día para la gráfica
-export const getDayHabits = async () => {
+export const getDayHabits = async (userId) => {
   const localDate = getLocalDate(); // YYYY-MM-DD local
 
   const { data, error } = await supabase
@@ -168,7 +266,7 @@ export const getDayHabits = async () => {
         daily_goal
       )
     `)
-    .eq('user_id', 19)
+    .eq('user_id', userId)
     .eq('log_date', localDate)
     .order('log_date', { ascending: false })
 
@@ -186,7 +284,7 @@ export const getDayHabits = async () => {
 }
 
 // Obtener hábitos de la semana
-export const getWeekHabits = async () => {
+export const getWeekHabits = async (userId) => {
   const today = new Date();
   const weekAgo = new Date(today);
   weekAgo.setDate(today.getDate() - 6); // Últimos 7 días incluyendo hoy
@@ -197,7 +295,7 @@ export const getWeekHabits = async () => {
   console.log("Buscando hábitos de la semana:", {
     start_date: startDate,
     end_date: endDate,
-    user_id: 19
+    user_id: userId
   });
 
   const { data, error } = await supabase
@@ -210,7 +308,7 @@ export const getWeekHabits = async () => {
         unit
       )
     `)
-    .eq('user_id', 19)
+    .eq('user_id', userId)
     .gte('log_date', startDate)
     .lte('log_date', endDate)
     .order('log_date', { ascending: true })
@@ -230,7 +328,7 @@ export const getWeekHabits = async () => {
 }
 
 // Obtener hábitos del mes
-export const getMonthHabits = async () => {
+export const getMonthHabits = async (userId) => {
   const today = new Date();
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(today.getDate() - 29); // Últimos 30 días incluyendo hoy
@@ -241,7 +339,7 @@ export const getMonthHabits = async () => {
   console.log("Buscando hábitos del mes:", {
     start_date: startDate,
     end_date: endDate,
-    user_id: 19
+    user_id: userId
   });
 
   const { data, error } = await supabase
@@ -254,7 +352,7 @@ export const getMonthHabits = async () => {
         unit
       )
     `)
-    .eq('user_id', 19)
+    .eq('user_id', userId)
     .gte('log_date', startDate)
     .lte('log_date', endDate)
     .order('log_date', { ascending: true })
@@ -303,13 +401,13 @@ export const getUserInfo = async (userId = 19) => {
 };
 
 // Consultar estado de la mascota
-export const getPetStatus = async () => {
+export const getPetStatus = async (userId) => {
   const { data, error } = await supabase
     .from('pet_states')
     .select(`
       *
     `)
-    .eq('user_id', 19)
+    .eq('user_id', userId)
     .single()
 
   if (error) {
@@ -373,9 +471,9 @@ export const updatePetEnergy = async (energyLevel, userId = 19) => {
 };
 
 // Obtener el último registro de agua del día
-const getLastWaterLog = async () => {
+const getLastWaterLog = async (userId) => {
   try {
-    const dayHabits = await getDayHabits();
+    const dayHabits = await getDayHabits(userId);
     const waterLogs = dayHabits.filter(log => log.healthy_habits?.type === 'hydration');
 
     if (waterLogs.length === 0) return null;
@@ -406,14 +504,14 @@ const getTimeSinceLastWater = (lastLog) => {
 };
 
 // Verificar si thirsty debe activarse (estado dinámico, no se guarda en DB)
-export const checkThirstyState = async () => {
+export const checkThirstyState = async (userId) => {
   try {
-    const lastWaterLog = await getLastWaterLog();
+    const lastWaterLog = await getLastWaterLog(userId);
     const timeSinceLastWater = getTimeSinceLastWater(lastWaterLog);
     const waterInterval = 2.4; // 2.4 horas entre tomas (24h / 10 vasos)
 
     // Obtener hábitos del día para calcular rates
-    const dayHabits = await getDayHabits();
+    const dayHabits = await getDayHabits(userId);
     const totals = { hydration: 0, sleep: 0, active_break: 0 };
     const goals = { hydration: 2500, sleep: 8, active_break: 3 };
 
@@ -456,20 +554,20 @@ export const checkThirstyState = async () => {
 };
 
 // Calcular y actualizar estado de la mascota basado en hábitos del día
-export const calculateAndUpdatePetState = async (userId = 19) => {
+export const calculateAndUpdatePetState = async (userId) => {
   try {
     console.log("Calculando estado de la mascota...");
 
     // Obtener hábitos del día con sus goals
-    const dayHabits = await getDayHabits();
+    const dayHabits = await getDayHabits(userId);
 
     // Obtener energy_level actual como respaldo
-    const currentPetState = await getPetStatus();
+    const currentPetState = await getPetStatus(userId);
     const currentEnergy = currentPetState?.energy_level ?? 50;
 
     // ── PASO 1: Agrupar valores por tipo de hábito ──
     const totals = { hydration: 0, sleep: 0, active_break: 0 };
-    const goals  = { hydration: 2500, sleep: 8, active_break: 3 }; // fallback si no viene de DB
+    const goals = { hydration: 2500, sleep: 8, active_break: 3 }; // fallback si no viene de DB
 
     dayHabits.forEach(log => {
       const type = log.healthy_habits?.type;
@@ -487,7 +585,7 @@ export const calculateAndUpdatePetState = async (userId = 19) => {
     console.log("Goals:", goals);
 
     // ── PASO 2: Calcular tiempo desde última toma de agua ──
-    const lastWaterLog = await getLastWaterLog();
+    const lastWaterLog = await getLastWaterLog(userId);
     const timeSinceLastWater = getTimeSinceLastWater(lastWaterLog);
     const waterInterval = 2.4; // 2.4 horas entre tomas (24h / 10 vasos)
     const minInterval = 1; // Mínimo 1 hora entre tomas
@@ -497,25 +595,25 @@ export const calculateAndUpdatePetState = async (userId = 19) => {
 
     // ── PASO 3: Calcular porcentaje de cumplimiento por hábito ──
     const rates = {
-      hydration:    totals.hydration    / goals.hydration,
-      sleep:        totals.sleep        / goals.sleep,
+      hydration: totals.hydration / goals.hydration,
+      sleep: totals.sleep / goals.sleep,
       active_break: totals.active_break / goals.active_break,
     };
 
     console.log("Tasas de cumplimiento:", {
-      hydration:    `${Math.round(rates.hydration * 100)}%`,
-      sleep:        `${Math.round(rates.sleep * 100)}%`,
+      hydration: `${Math.round(rates.hydration * 100)}%`,
+      sleep: `${Math.round(rates.sleep * 100)}%`,
       active_break: `${Math.round(rates.active_break * 100)}%`,
     });
 
     // ── PASO 3: Calcular energy_level nuevo (Opción 4 como respaldo) ──
     let energyChange = 0;
     Object.values(rates).forEach(rate => {
-      if (rate >= 1)        energyChange += 15;
+      if (rate >= 1) energyChange += 15;
       else if (rate >= 0.7) energyChange += 10;
       else if (rate >= 0.5) energyChange += 5;
       else if (rate >= 0.3) energyChange -= 5;
-      else                  energyChange -= 10;
+      else energyChange -= 10;
     });
 
     const newEnergy = Math.max(0, Math.min(100, currentEnergy + energyChange));
@@ -551,9 +649,9 @@ export const calculateAndUpdatePetState = async (userId = 19) => {
     }
     // Respaldo — energy_level como desempate
     else {
-      if (newEnergy >= 70)      newMood = 'happy';
+      if (newEnergy >= 70) newMood = 'happy';
       else if (newEnergy >= 40) newMood = 'neutral';
-      else                      newMood = 'sad';
+      else newMood = 'sad';
     }
 
     console.log(`Mood calculado: ${newMood} | Energy: ${newEnergy}`);
@@ -563,7 +661,6 @@ export const calculateAndUpdatePetState = async (userId = 19) => {
     await updatePetEnergy(newEnergy, userId);
 
     return { mood: newMood, energy_level: newEnergy };
-
   } catch (error) {
     console.error('Error en calculateAndUpdatePetState:', error);
     throw error;

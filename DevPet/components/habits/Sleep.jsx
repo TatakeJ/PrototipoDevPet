@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import { saveSleepLog, getDayHabits } from "../../lib/supabaseClient";
 import { BrainCog } from "lucide-react-native";
 
-const Sleep = ({ addPoints, onSaved }) => {
+const Sleep = ({ userId, addPoints, onSaved }) => {
   const [sleepTime, setSleepTime] = useState('');
   const [wakeTime, setWakeTime] = useState('');
   const [hasSleepRecord, setHasSleepRecord] = useState(false);
@@ -13,11 +13,11 @@ const Sleep = ({ addPoints, onSaved }) => {
   // Verificar si ya existe registro de sueño hoy
   useEffect(() => {
     checkSleepRecord();
-  }, []);
+  }, [userId]);
 
   const checkSleepRecord = async () => {
     try {
-      const dayHabits = await getDayHabits();
+      const dayHabits = await getDayHabits(userId);
       const sleepLog = dayHabits.find(log => log.healthy_habits?.type === 'sleep');
       
       if (sleepLog) {
@@ -54,7 +54,7 @@ const Sleep = ({ addPoints, onSaved }) => {
   }
 
   try {
-    await saveSleepLog(hours);
+    await saveSleepLog(hours, userId);
     // Los puntos se asignan automáticamente por el trigger trg_add_points_on_log
     Alert.alert("¡Buen descanso!", "Horas de sueño guardadas.");
     
