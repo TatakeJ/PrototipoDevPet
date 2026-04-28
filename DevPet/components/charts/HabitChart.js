@@ -19,7 +19,7 @@ const PERIOD_TITLE = {
     month: 'Mensual',
 };
 
-export default function HabitChart() {
+export default function HabitChart({ userId }) {
     const [activeTab, setActiveTab] = useState('day');
     const [selectedHabit, setSelectedHabit] = useState('hydration');
     const [habitLogs, setHabitLogs] = useState(null);
@@ -28,7 +28,7 @@ export default function HabitChart() {
 
     useEffect(() => {
         loadData();
-    }, [activeTab]);
+    }, [activeTab, userId]);
     
     const loadData = async () => {
         try {
@@ -37,12 +37,12 @@ export default function HabitChart() {
 
             let habitLogs;
             if (activeTab === 'day') {
-                habitLogs = await getDayHabits();
+                habitLogs = await getDayHabits(userId);
                 setHabitLogs(habitLogs);
             } else if (activeTab === 'week') {
-                habitLogs = await getWeekHabits();
+                habitLogs = await getWeekHabits(userId);
             } else if (activeTab === 'month') {
-                habitLogs = await getMonthHabits();
+                habitLogs = await getMonthHabits(userId);
             }
         } catch (error) {
             console.error('Error cargando datos:', error);
@@ -123,11 +123,13 @@ export default function HabitChart() {
                 />
             ) : activeTab === 'week' ? (
                 <WeeklyHabitCharts 
-                    selectedHabit={selectedHabit} 
+                    selectedHabit={selectedHabit}
+                    userId={userId}
                 />
             ) : (
                 <MonthlyHabitCharts 
-                    selectedHabit={selectedHabit} 
+                    selectedHabit={selectedHabit}
+                    userId={userId}
                 />
             )}
 

@@ -5,18 +5,18 @@ import { getMonthHabits } from '../../lib/supabaseClient';
 
 const { width } = Dimensions.get('window');
 
-export default function MonthlyHabitCharts({ selectedHabit }) {
+export default function MonthlyHabitCharts({ selectedHabit, userId }) {
     const [monthlyData, setMonthlyData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         loadMonthlyData();
-    }, [selectedHabit]);
+    }, [selectedHabit, userId]);
 
     const loadMonthlyData = async () => {
         try {
             setLoading(true);
-            const data = await getMonthHabits();
+            const data = await getMonthHabits(userId);
             
             // Procesar datos según el hábito seleccionado
             const processedData = processMonthlyData(data, selectedHabit);
