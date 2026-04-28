@@ -41,16 +41,6 @@ const Pet = forwardRef(({ userId, points, onPointsChange }, ref) => {
 
     // ── Área de la mascota para partículas ──
     const [petArea, setPetArea] = useState({ width: 0, height: 0 });
-    const [bounce, setBounce]   = useState(false);
-
-    // ── Efecto de rebote cuando suben los puntos ──
-    useEffect(() => {
-        if (points > 0) {
-            setBounce(true);
-            const t = setTimeout(() => setBounce(false), 150);
-            return () => clearTimeout(t);
-        }
-    }, [points]);
 
     // ────────────────────────────────────────────
     // LÓGICA SLEEPY
@@ -235,28 +225,18 @@ const Pet = forwardRef(({ userId, points, onPointsChange }, ref) => {
     useImperativeHandle(ref, () => ({ refreshPetState: refresh }));
 
     // ────────────────────────────────────────────
-    // EMOJIS
+    // PARTÍCULAS DE ESTADO
     // ────────────────────────────────────────────
 
-    // Emoji principal — sleepy tiene prioridad absoluta
-    const getMainEmoji = () => {
-        if (isSleepy) return '😴';
-        switch (baseMood) {
-            case 'happy':   return '😸';
-            case 'sad':     return '😿';
-            default:        return '🙂';
-        }
-    };
-
-    // Emoji secundario — thirsty se muestra junto al estado base (no junto a sleepy)
-    const getSecondaryEmoji = () => {
-        if (!isThirsty || isSleepy) return null;
-        return '😵';
-    };
-
-    const getParticleState = () => {
-        if (isSleepy) return 'neutral';
-        return baseMood === 'happy' ? 'happy' : 'neutral';
+    const getParticleStates = () => {
+        // Sleepy tiene prioridad máxima - solo muestra partículas sleepy
+        if (isSleepy) return ['sleepy'];
+        
+        // Si no está sleepy, combina baseMood con thirsty si está activo
+        const states = [baseMood];
+        if (isThirsty) states.push('thirsty');
+        
+        return states;
     };
 
     const handlePetLayout = useCallback((e) =>
@@ -268,19 +248,6 @@ const Pet = forwardRef(({ userId, points, onPointsChange }, ref) => {
     return (
         <>
             <View style={styles.petBox}>
-
-                {/* Emojis de estado */}
-                <View style={styles.emojiRow}>
-                    <Text style={[styles.moodEmoji, { fontSize: bounce ? 55 : 45 }]}>
-                        {getMainEmoji()}
-                    </Text>
-                    {getSecondaryEmoji() && (
-                        <Text style={[styles.moodEmoji, styles.secondaryEmoji, { fontSize: bounce ? 45 : 35 }]}>
-                            {getSecondaryEmoji()}
-                        </Text>
-                    )}
-                </View>
-
                 <Image
                     source={require('../../assets/DevPet_neutral.png')}
                     style={styles.petImage}
@@ -290,7 +257,7 @@ const Pet = forwardRef(({ userId, points, onPointsChange }, ref) => {
 
             {petArea.width > 0 && (
                 <OptimizedParticles
-                    petState={getParticleState()}
+                    petStates={getParticleStates()}
                     petAreaWidth={petArea.width}
                     petAreaHeight={petArea.height}
                 />
@@ -306,19 +273,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginVertical: 20,
-    },
-    emojiRow: {
-        flexDirection: 'row',
-        position: 'absolute',
-        top: -50,
-        zIndex: 10,
-        gap: 6,
-    },
-    moodEmoji: {
-        fontSize: 45,
-    },
-    secondaryEmoji: {
-        opacity: 0.85,
     },
     petImage: {
         width:       width * 0.48,
