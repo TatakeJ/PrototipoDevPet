@@ -5,18 +5,18 @@ import { getWeekHabits } from '../../lib/supabaseClient';
 
 const { width } = Dimensions.get('window');
 
-export default function WeeklyHabitCharts({ selectedHabit }) {
+export default function WeeklyHabitCharts({ selectedHabit, userId }) {
     const [weeklyData, setWeeklyData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         loadWeeklyData();
-    }, [selectedHabit]);
+    }, [selectedHabit, userId]);
 
     const loadWeeklyData = async () => {
         try {
             setLoading(true);
-            const data = await getWeekHabits();
+            const data = await getWeekHabits(userId);
             
             // Procesar datos según el hábito seleccionado
             const processedData = processWeeklyData(data, selectedHabit);

@@ -39,6 +39,7 @@ import {
   getDayHabits,
   getUserInfo,
 } from "../lib/supabaseClient";
+import { useAuth } from "../context/AuthContext";
 
 const { width } = Dimensions.get("window");
 
@@ -72,6 +73,7 @@ const getRecommendation = (summary) => {
 };
 
 export default function HomeScreen({ navigation }) {
+  const { userId } = useAuth();
   const [waterVisible, setWaterVisible] = useState(false);
   const [sleepVisible, setSleepVisible] = useState(false);
   const [breakVisible, setBreakVisible] = useState(false);
@@ -99,7 +101,7 @@ export default function HomeScreen({ navigation }) {
   // Cargar información del usuario desde la base de datos
   const loadUserInfo = async () => {
     try {
-      const userData = await getUserInfo();
+      const userData = await getUserInfo(userId);
       if (userData) {
         setUserInfo(userData);
         setPoints(userData.total_points || 0);
@@ -238,8 +240,9 @@ export default function HomeScreen({ navigation }) {
         <View style={localStyles.petContainer}>
             <Pet
                 ref={petRef}
+                userId={userId}
                 points={points}
-                onPointsChange={(newPoints) => setPoints(newPoints)} // ← agrega esto
+                onPointsChange={(newPoints) => setPoints(newPoints)}
             />
         </View>
 
@@ -275,7 +278,7 @@ export default function HomeScreen({ navigation }) {
         onClose={() => toggleSheet("states", false)}
         animation="slideDown"
       >
-        <HabitChart />
+        <HabitChart userId={userId} />
       </Sheet>
 
       <Sheet
@@ -292,6 +295,7 @@ export default function HomeScreen({ navigation }) {
         animation="slideDown"
       >
         <DailyTasks
+          userId={userId}
           addPoints={setPoints}
           onSaved={() => {
             loadUserInfo();
@@ -310,6 +314,7 @@ export default function HomeScreen({ navigation }) {
         animation="slideUp"
       >
         <Water
+            userId={userId}
             addPoints={setPoints}
             onSaved={() => {
                 setWaterVisible(false);
@@ -327,6 +332,7 @@ export default function HomeScreen({ navigation }) {
         animation="slideUp"
       >
         <Sleep
+          userId={userId}
           addPoints={setPoints}
           onSaved={() => {
             setSleepVisible(false);
@@ -346,6 +352,7 @@ export default function HomeScreen({ navigation }) {
         animation="slideUp"
       >
         <Break
+          userId={userId}
           addPoints={setPoints}
           onSaved={() => {
             loadUserInfo(); // Recargar puntos desde la base de datos

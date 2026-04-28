@@ -12,7 +12,7 @@ import { saveBreak } from "../../lib/supabaseClient";
 
 const { width } = Dimensions.get("window");
 
-const Break = ({ addPoints, onSaved, onCycleComplete }) => {
+const Break = ({ userId, addPoints, onSaved, onCycleComplete }) => {
   // Configuración de tiempos
   const TIMES = {
     FOCUS: 5,
