@@ -45,7 +45,7 @@ const ALL_TASKS = [
   { id: 20, title: "Duerme 8 horas Y bebe 6 vasos", category: "mixed", icon: "moon-o", points: 35, target: { sleep: 8, water: 6 }, unit: "mixto" }
 ];
 
-const DailyTasks = ({ addPoints, onSaved }) => {
+const DailyTasks = ({ userId, addPoints, onSaved }) => {
   const [dailyTasks, setDailyTasks] = useState([]);
   const [habitLogs, setHabitLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +61,7 @@ const DailyTasks = ({ addPoints, onSaved }) => {
       await loadClaimedTasks();
     };
     initializeDailyTasks();
-  }, []);
+  }, [userId]);
 
   // Obtener la fecha actual en formato YYYY-MM-DD
   const getCurrentDate = () => {
@@ -132,7 +132,7 @@ const DailyTasks = ({ addPoints, onSaved }) => {
   // Cargar hábitos del día actual
   const loadDayHabits = async () => {
     try {
-      const dayHabits = await getDayHabits();
+      const dayHabits = await getDayHabits(userId);
       setHabitLogs(dayHabits);
     } catch (error) {
       console.error('Error cargando hábitos del día:', error);
@@ -143,7 +143,7 @@ const DailyTasks = ({ addPoints, onSaved }) => {
   // Cargar información del usuario
   const loadUserInfo = async () => {
     try {
-      const userData = await getUserInfo();
+      const userData = await getUserInfo(userId);
       setUserInfo(userData);
     } catch (error) {
       console.error('Error cargando información del usuario:', error);
@@ -201,7 +201,7 @@ const DailyTasks = ({ addPoints, onSaved }) => {
       const currentPoints = userInfo.total_points || 0;
       const newPoints = currentPoints + task.points;
 
-      await updateUserPoints(newPoints);
+      await updateUserPoints(newPoints, userId);
 
       // Actualizar estado local
       setUserInfo({ ...userInfo, total_points: newPoints });
