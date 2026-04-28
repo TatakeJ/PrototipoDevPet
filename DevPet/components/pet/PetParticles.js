@@ -11,12 +11,24 @@ const EMOJI_SETS = {
   sad: [
     require('../../assets/emojis/sad.png'),
   ],
+  sleepy: [
+    require('../../assets/emojis/sleepy.png'),
+  ],
+  neutral: [
+    require('../../assets/emojis/neutral.png'),
+  ],
+  thirsty: [
+    require('../../assets/emojis/thirsty.png'),
+  ],
 };
 
 // Cuántas partículas simultáneas por estado
 const PARTICLE_COUNT = {
-  happy: 10,
-  sad: 10,
+  happy: 8,
+  sad: 8,
+  sleepy: 8,
+  neutral: 5,
+  thirsty: 8,
 };
 
 // Una sola partícula animada
@@ -86,26 +98,35 @@ function Particle({ emoji, petAreaWidth, petAreaHeight, delay }) {
     }
 
     // Componente principal
-    export default function PetParticles({ petState, petAreaWidth, petAreaHeight }) {
-    const defaultEmojis = ['✨', '⭐']; 
+    export default function PetParticles({ petStates, petAreaWidth, petAreaHeight }) {
+    const defaultEmojis = ['✨', '⭐'];
     
-    const emojis = EMOJI_SETS[petState] || EMOJI_SETS.neutral || defaultEmojis;
+    // Aceptar array de estados o un solo estado
+    const states = Array.isArray(petStates) ? petStates : [petStates];
     
-    const count = PARTICLE_COUNT[petState] || 3;
-
-    const particles = Array.from({ length: count }, (_, i) => ({
-        id: i,
-        emoji: emojis && emojis.length > 0 ? emojis[i % emojis.length] : '✨',
-        delay: (i / count) * 2000, 
-    }));
-
+    // Combinar partículas de todos los estados
+    const allParticles = [];
+    let idCounter = 0;
+    
+    states.forEach(state => {
+        const emojis = EMOJI_SETS[state] || EMOJI_SETS.neutral || defaultEmojis;
+        const count = PARTICLE_COUNT[state] || 3;
+        
+        for (let i = 0; i < count; i++) {
+            allParticles.push({
+                id: idCounter++,
+                emoji: emojis && emojis.length > 0 ? emojis[i % emojis.length] : '✨',
+                delay: (i / count) * 2000,
+            });
+        }
+    });
 
     return (
         <View
         style={[styles.container, { width: petAreaWidth, height: petAreaHeight }]}
         pointerEvents="none" // no bloquea toques al gato
         >
-        {particles.map(p => (
+        {allParticles.map(p => (
             <Particle
             key={p.id}
             emoji={p.emoji}
