@@ -8,11 +8,17 @@ import {
   Vibration,
   Dimensions,
 } from "react-native";
-import { saveBreak } from "../../lib/supabaseClient";
+import { saveActiveBreakLog } from "../../lib/supabaseClient"
 
 const { width } = Dimensions.get("window");
 
-const Break = ({ userId, addPoints, onSaved, onCycleComplete, initialMode }) => {
+const Break = ({
+  userId,
+  addPoints,
+  onSaved,
+  onCycleComplete,
+  initialMode,
+}) => {
   // Configuración de tiempos
   const TIMES = {
     FOCUS: 5,
@@ -53,27 +59,41 @@ const Break = ({ userId, addPoints, onSaved, onCycleComplete, initialMode }) => 
           ],
         );
       } else {
-        if (addPoints) addPoints((prev) => prev + 10);
+        saveActiveBreakLog(userId)
+          .then(() => {
+            console.log(
+              "Registro de pausa activa guardado en BD para:",
+              userId,
+            );
 
-        Alert.alert(
-          "¡Descanso Terminado!",
-          "Has completado el ciclo y ganado 10 puntos. ✨",
-          [
-            {
-              text: "Genial",
-              onPress: () => {
-                setMode("FOCUS");
-                setTime(TIMES.FOCUS);
-                if (onSaved) onSaved();
-              },
-            },
-          ],
-        );
+            Alert.alert(
+              "¡Ciclo Completado!",
+              "Tu pausa activa ha sido registrada exitosamente en tu historial.",
+              [
+                {
+                  text: "Continuar",
+                  onPress: () => {
+                    setMode("FOCUS");
+                    setTime(TIMES.FOCUS);
+                    setIsRunning(true);
+                    if (onSaved) onSaved();
+                  },
+                },
+              ],
+            );
+          })
+          .catch((err) => {
+            console.error("Error crítico al guardar en BD:", err);
+            Alert.alert(
+              "Error de Conexión",
+              "No se pudo sincronizar tu actividad con el servidor.",
+            );
+          });
       }
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, time, mode, onCycleComplete, addPoints, onSaved]);
+  }, [isRunning, time, mode, onCycleComplete, addPoints, onSaved, userId]);
 
   const handleCycleComplete = async () => {
     Vibration.vibrate([500, 500, 500]);

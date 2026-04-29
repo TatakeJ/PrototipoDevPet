@@ -403,7 +403,6 @@ export default function HomeScreen({ navigation }) {
           addPoints={setPoints}
           initialMode={initialMode}
           onSaved={() => {
-            toggleSheet("rest", false);
             loadUserInfo();
             if (petRef.current) {
               petRef.current.refreshPetState();
