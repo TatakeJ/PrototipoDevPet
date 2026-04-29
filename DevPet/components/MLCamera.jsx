@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,71 +8,103 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as tf from "@tensorflow/tfjs";
+import { decodeJpeg } from "@tensorflow/tfjs-react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import { loadModel } from "../lib/loadModel";
+import * as ImageManipulator from "expo-image-manipulator";
 
 const MLCamera = ({ onDetected }) => {
   const [permission, requestPermission] = useCameraPermissions();
+
+  useEffect(() => {
+    if (permission && !permission.granted) {
+      requestPermission();
+    }
+  }, [permission]);
+
   const cameraRef = useRef(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState("idle");
+  const [model, setModel] = useState(null);
 
-  // 1. Manejo de permisos
-  if (!permission) {
+  useEffect(() => {
+    const initModel = async () => {
+      const loadedModel = await loadModel();
+      if (loadedModel) {
+        console.log("Cerebro recibido en el componente");
+        setModel(loadedModel);
+      }
+    };
+    initModel();
+  }, []);
+
+  if (!permission)
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" />
       </View>
     );
-  }
-
   if (!permission.granted) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>Necesitamos permiso para usar la cámara</Text>
-        <Button title="Conceder Permiso" onPress={requestPermission} />
+        <ActivityIndicator size="large" />
+        <Text>Solicitando permiso...</Text>
       </View>
     );
   }
 
-  // 2. Lógica de envío a ML (Simulada)
-  const sendToML = (uri) => {
-    return new Promise((resolve) => {
+  const runPrediction = async (photo) => {
+    try {
       setStatus("processing");
-      console.log("Enviando a ML... { Model: @teachablemachine/image }");
 
-      setTimeout(() => {
-        const isCorrect = Math.random() > 0.3;
-        const result = { pose: isCorrect ? "correcta" : "incorrecta" };
+      const imgBuffer = tf.util.encodeString(photo.base64, "base64").buffer;
+      const rawImageData = new Uint8Array(imgBuffer);
 
-        console.log("Resultado:", result);
+      let imageTensor = decodeJpeg(rawImageData, 3);
+      const normalizedTensor = imageTensor.expandDims(0).toFloat(0).div(255);
 
-        if (result.pose === "correcta") {
-          setStatus("success");
-          onDetected();
-        } else {
-          setStatus("error");
-          Alert.alert(
-            "Postura incorrecta",
-            "Asegúrate de estar completamente visible y estirado"
-          );
-        }
-        resolve();
-      }, 1500);
-    });
+      const prediction = await model.predict(normalizedTensor);
+      const scores = await prediction.data();
+      const maxScoreIndex = scores.indexOf(Math.max(...scores));
+
+      console.log("Scores del modelo:", scores);
+      const isCorrect = maxScoreIndex === 1 && scores[1] > 0.7;
+
+      tf.dispose([imageTensor, normalizedTensor, prediction]);
+
+      if (isCorrect) {
+        setStatus("success");
+        setTimeout(() => onDetected(), 800);
+      } else {
+        setStatus("error");
+        Alert.alert("Postura Incorrecta", "Enderézate un poco.");
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCapture = async () => {
-    if (!cameraRef.current || isProcessing) return;
+    if (!cameraRef.current || isProcessing || !model) return;
 
     try {
       setIsProcessing(true);
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.5,
-      });
 
-      await sendToML(photo.uri);
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.1 });
+
+      // Recorte agresivo
+      const manipulated = await ImageManipulator.manipulateAsync(
+        photo.uri,
+        [{ resize: { width: 224, height: 224 } }],
+        { base64: true, format: ImageManipulator.SaveFormat.JPEG },
+      );
+
+      await runPrediction(manipulated);
     } catch (error) {
-      Alert.alert("Error", "No se pudo capturar la fotografía");
-    } finally {
+      console.error(error);
       setIsProcessing(false);
     }
   };
@@ -82,27 +114,40 @@ const MLCamera = ({ onDetected }) => {
       <CameraView ref={cameraRef} style={styles.camera} facing="front" />
 
       <View style={styles.overlay}>
-        <Text style={styles.text}>Apunta a tu cuerpo</Text>
-        
-        <View style={{ opacity: isProcessing ? 0.5 : 1, width: '100%' }}>
-          <Button
-            title={isProcessing ? "Procesando..." : "Validar estiramiento"}
-            onPress={handleCapture}
-            disabled={isProcessing}
-          />
+        <Text style={styles.text}>Valida tu estiramiento</Text>
+
+        <View style={{ width: "100%", marginBottom: 10 }}>
+          {model ? (
+            <Button
+              title={isProcessing ? "Analizando..." : "Validar Postura"}
+              onPress={handleCapture}
+              disabled={isProcessing}
+              color="#2196F3"
+            />
+          ) : (
+            <ActivityIndicator size="small" color="#ffffff" />
+          )}
         </View>
 
-        {/* Feedback visual según el estado */}
-        {status === "processing" && (
-          <Text style={styles.feedbackText}>🔍 Analizando postura...</Text>
+        {/* Feedback visual según el estado del modelo y la predicción */}
+        {!model && (
+          <Text style={styles.feedbackText}>⚙️ Iniciando motor de IA...</Text>
         )}
 
-        {status === "error" && (
-          <Text style={[styles.feedbackText, { color: "#ff4444" }]}>❌ Postura incorrecta</Text>
+        {status === "processing" && (
+          <Text style={styles.feedbackText}>🔍 Analizando con IA...</Text>
         )}
 
         {status === "success" && (
-          <Text style={[styles.feedbackText, { color: "#00C851" }]}>✅ ¡Excelente!</Text>
+          <Text style={[styles.feedbackText, { color: "#00C851" }]}>
+            ✅ ¡Postura Correcta!
+          </Text>
+        )}
+
+        {status === "error" && (
+          <Text style={[styles.feedbackText, { color: "#ff4444" }]}>
+            ❌ Intenta de nuevo
+          </Text>
         )}
       </View>
     </View>

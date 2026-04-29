@@ -19,7 +19,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Componentes personalizados
-import { BrainCog, ShoppingCart, ClipboardList, Droplet, BatteryMedium, Heart, Star, Target, } from "lucide-react-native";
+import {
+  BrainCog,
+  ShoppingCart,
+  ClipboardList,
+  Droplet,
+  BatteryMedium,
+  Heart,
+  Star,
+  Target,
+} from "lucide-react-native";
 import { Modal, Alert } from "react-native";
 import HabitChart from "../components/charts/HabitChart";
 import Pet from "../components/pet/Pet";
@@ -54,14 +63,14 @@ const getRecommendation = (summary) => {
 
   if (summary.water < 3) {
     return {
-      text: "Tu cuerpo pide agua 💧",
+      text: "Toma más agua 💧",
       mood: "water",
     };
   }
 
   if (summary.breaks < 1) {
     return {
-      text: "Llevas mucho tiempo quieto 🧘",
+      text: "Haz una pausa 🧘",
       mood: "break",
     };
   }
@@ -80,6 +89,13 @@ export default function HomeScreen({ navigation }) {
   const [mlVisible, setMLVisible] = useState(false);
   const [showBubble, setShowBubble] = useState(false);
   const [bubbleOpen, setBubbleOpen] = useState(false);
+  const [summary, setSummary] = useState({
+    water: 0,
+    sleep: 0,
+    breaks: 0,
+  });
+  const [breakKey, setBreakKey] = useState(0);
+  const [initialMode, setInitialMode] = useState("FOCUS");
 
   // Estados de visibilidad para los Sheets (lo organicé mejor)
   const [sheets, setSheets] = useState({
@@ -107,7 +123,7 @@ export default function HomeScreen({ navigation }) {
         setPoints(userData.total_points || 0);
       }
     } catch (error) {
-      console.error('Error cargando información del usuario:', error);
+      console.error("Error cargando información del usuario:", error);
     }
   };
 
@@ -123,7 +139,7 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
-  const recommendation = useMemo(() => getRecommendation({ water: 0, sleep: 0, breaks: 0 }), []);
+  const recommendation = useMemo(() => getRecommendation(summary), [summary]);
 
   // Memorizar cálculos de niveles
   const { level, progress } = useMemo(
@@ -183,6 +199,14 @@ export default function HomeScreen({ navigation }) {
     loadUserInfo(); // Cargar información del usuario al montar
   }, []);
 
+  useEffect(() => {
+    setSummary({
+      water: 2,
+      sleep: 8,
+      breaks: 0,
+    });
+  }, []);
+
   return (
     <ImageBackground
       source={require("../assets/RoomBedBackground.png")}
@@ -238,12 +262,26 @@ export default function HomeScreen({ navigation }) {
 
         {/* Área Central: mascota y partículas */}
         <View style={localStyles.petContainer}>
-            <Pet
-                ref={petRef}
-                userId={userId}
-                points={points}
-                onPointsChange={(newPoints) => setPoints(newPoints)}
-            />
+          <TouchableOpacity
+            style={localStyles.bubbleButton}
+            onPress={() => setBubbleOpen(!bubbleOpen)}
+          >
+            <Text style={{ color: "white" }}>💬</Text>
+          </TouchableOpacity>
+
+          {bubbleOpen && (
+            <View style={localStyles.bubble}>
+              <Text style={localStyles.bubbleText}>{recommendation.text}</Text>
+              <View style={localStyles.bubbleArrow} />
+            </View>
+          )}
+
+          <Pet
+            ref={petRef}
+            userId={userId}
+            points={points}
+            onPointsChange={(newPoints) => setPoints(newPoints)}
+          />
         </View>
 
         {/* Footer: Acciones de hábitos */}
@@ -314,13 +352,17 @@ export default function HomeScreen({ navigation }) {
         animation="slideUp"
       >
         <Water
-            userId={userId}
-            addPoints={setPoints}
-            onSaved={() => {
-                setWaterVisible(false);
-                loadUserInfo();
-                if (petRef.current) petRef.current.refreshPetState(); // ← recalcula thirsty
-            }}
+          userId={userId}
+          addPoints={setPoints}
+          onSaved={() => {
+            setWaterVisible(false);
+            loadUserInfo();
+            if (petRef.current) petRef.current.refreshPetState();
+            setSummary((prev) => ({
+              ...prev,
+              water: prev.water + 1,
+            }));
+          }}
         />
       </Sheet>
 
@@ -340,6 +382,10 @@ export default function HomeScreen({ navigation }) {
             if (petRef.current) {
               petRef.current.refreshPetState();
             }
+            setSummary((prev) => ({
+              ...prev,
+              sleep: 8,
+            }));
           }}
         />
       </Sheet>
@@ -352,39 +398,34 @@ export default function HomeScreen({ navigation }) {
         animation="slideUp"
       >
         <Break
+          key={breakKey}
           userId={userId}
           addPoints={setPoints}
+          initialMode={initialMode}
           onSaved={() => {
-            loadUserInfo(); // Recargar puntos desde la base de datos
+            toggleSheet("rest", false);
+            loadUserInfo();
             if (petRef.current) {
               petRef.current.refreshPetState();
             }
+
+            setSummary((prev) => ({
+              ...prev,
+              breaks: prev.breaks + 1,
+            }));
+          }}
+          onCycleComplete={() => {
+            // Esta es la lógica para abrir la cámara
+            console.log("Cerrando descanso y abriendo cámara...");
+
+            toggleSheet("rest", false);
+
+            setTimeout(() => {
+              setMLVisible(true);
+            }, 600);
           }}
         />
       </Sheet>
-
-      {/* MODAL 1: Pomodoro */}
-      <Modal visible={sheets.rest} animationType="slide" transparent={true}>
-        <View style={{ flex: 1 }}>
-          <Break
-            addPoints={setPoints}
-            onSaved={() => {
-              toggleSheet("rest", false);
-              setMLVisible(true);
-              loadUserInfo(); // Recargar puntos desde la base de datos
-              if (petRef.current) {
-                petRef.current.refreshPetState();
-              }
-            }}
-          />
-          <TouchableOpacity
-            onPress={() => toggleSheet("rest", false)}
-            style={localStyles.closeBtnMinimal}
-          >
-            <Text style={{ color: "#64748B" }}>Cancelar</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
 
       {/* MODAL 2: ML */}
       <Modal visible={mlVisible} animationType="fade">
@@ -396,14 +437,22 @@ export default function HomeScreen({ navigation }) {
                   user_id: "demo-user",
                   completed_at: new Date().toISOString(),
                 });
+
                 addPoints((prev) => prev + 5);
+
                 Alert.alert(
                   "¡Validado!",
                   "Estiramiento completado, puntos sumados",
                 );
+
                 setMLVisible(false);
-                loadBreaks();
-                // Actualizar estado de la mascota después de validar con ML
+
+                setInitialMode("BREAK");
+
+                setBreakKey((prev) => prev + 1);
+
+                toggleSheet("rest", true);
+
                 if (petRef.current) {
                   petRef.current.refreshPetState();
                 }
@@ -427,7 +476,9 @@ export default function HomeScreen({ navigation }) {
 }
 // Limpieza, esto es un subcomponente
 const ActionButton = ({ icon, onPress }) => (
-  <TouchableOpacity style={localStyles.actionBtn} onPress={onPress}>{icon}</TouchableOpacity>
+  <TouchableOpacity style={localStyles.actionBtn} onPress={onPress}>
+    {icon}
+  </TouchableOpacity>
 );
 
 const localStyles = StyleSheet.create({
@@ -471,7 +522,7 @@ const localStyles = StyleSheet.create({
     marginBottom: 4,
     gap: 4,
   },
-  levelLabel: { color: "white", fontWeight: "bold", fontSize: 11, },
+  levelLabel: { color: "white", fontWeight: "bold", fontSize: 11 },
   expText: { color: "rgba(255,255,255,0.6)", fontSize: 9, marginLeft: "auto" },
   expTrack: {
     height: 4,
@@ -525,6 +576,47 @@ const localStyles = StyleSheet.create({
     borderRadius: 25,
     borderWidth: 1,
     borderColor: "white",
+  },
+  bubbleButton: {
+    position: "absolute",
+    top: 20,
+    right: 20,
+    backgroundColor: "#22C55E",
+    padding: 10,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+
+  bubble: {
+    position: "absolute",
+    bottom: 220,
+    alignSelf: "center",
+    backgroundColor: "white",
+    padding: 12,
+    borderRadius: 12,
+    maxWidth: 200,
+    elevation: 5,
+    zIndex: 10,
+  },
+
+  bubbleText: {
+    color: "#111",
+    fontSize: 12,
+  },
+
+  bubbleArrow: {
+    position: "absolute",
+    bottom: -8,
+    left: "50%",
+    marginLeft: -8,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 8,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "white",
   },
   text_sheet: {
     color: "white",

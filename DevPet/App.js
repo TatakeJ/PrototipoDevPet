@@ -3,6 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import HomeScreen from "./screens/HomeScreen";
 import AuthScreen from "./screens/AuthScreen";
+import * as FileSystem from "expo-file-system";
 import LoadingScreen from "./screens/LoadingScreen";
 
 function AppContent() {
@@ -15,6 +16,10 @@ function AppContent() {
     }, 1000);
     return () => clearTimeout(timer);
   }, [setLoading]);
+
+  if (!global.RNFS) {
+    global.RNFS = FileSystem;
+  }
 
   if (loading) {
     return <LoadingScreen />;
@@ -36,7 +41,6 @@ export default function App() {
     </AuthProvider>
   );
 }
-
 
 /* import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";

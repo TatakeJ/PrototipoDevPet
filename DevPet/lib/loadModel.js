@@ -1,15 +1,18 @@
-/* import * as tf from '@tensorflow/tfjs'
-import '@tensorflow/tfjs-react-native'
-import { bundleResourceIO } from '@tensorflow/tfjs-react-native'
+import * as tf from '@tensorflow/tfjs';
+import '@tensorflow/tfjs-react-native';
 
 export const loadModel = async () => {
-  const modelJson = require('../assets/model/model.json')
-  const modelWeights = require('../assets/model/weights.bin')
+  try {
+    await tf.ready();
+    
+    const URL = "https://teachablemachine.withgoogle.com/models/UTWlA7v3H/";
+    
+    const model = await tf.loadLayersModel(`${URL}model.json`);
 
-  const model = await tf.loadLayersModel(
-    bundleResourceIO(modelJson, modelWeights)
-  )
-
-  console.log("MODEL LOADED")
-  return model
-} */
+    console.log("✅ MODELO CARGADO DESDE LA NUBE");
+    return model;
+  } catch (error) {
+    console.error("❌ ERROR CARGANDO DESDE URL:", error);
+    return null;
+  }
+};
