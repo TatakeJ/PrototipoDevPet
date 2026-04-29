@@ -12,15 +12,17 @@ import { saveBreak } from "../../lib/supabaseClient";
 
 const { width } = Dimensions.get("window");
 
-const Break = ({ userId, addPoints, onSaved, onCycleComplete }) => {
+const Break = ({ userId, addPoints, onSaved, onCycleComplete, initialMode }) => {
   // Configuración de tiempos
   const TIMES = {
     FOCUS: 5,
     BREAK: 5,
   };
 
-  const [mode, setMode] = useState("FOCUS"); // FOCUS o BREAK
-  const [time, setTime] = useState(TIMES.FOCUS);
+  const [mode, setMode] = useState(initialMode || "FOCUS");
+  const [time, setTime] = useState(
+    initialMode === "BREAK" ? TIMES.BREAK : TIMES.FOCUS,
+  );
   const [isRunning, setIsRunning] = useState(false);
   const [message, setMessage] = useState("");
 
